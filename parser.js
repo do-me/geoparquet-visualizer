@@ -63,25 +63,17 @@ export async function* processParquetStream(file, limit = Infinity) {
             }
             let geometry = null;
             
-            // Priority 1: Use lon/lat columns if they exist and are valid
-            if (isValidCoordinate(row.lon) && isValidCoordinate(row.lat)) {
-                geometry = { type: 'Point', coordinates: [row.lon, row.lat] };
-            } 
-            // Priority 2: Try to parse WKB geometry
-            else if (row.geometry instanceof Uint8Array) {
+            // Priority 1: Try to parse WKB geometry
+            if (row.geometry instanceof Uint8Array) {
                 const buffer = row.geometry.buffer.slice(
                     row.geometry.byteOffset,
                     row.geometry.byteOffset + row.geometry.byteLength
                 );
                 geometry = parseWKB(buffer);
             }
-            // Try geometry_bbox if main geometry fails
-            else if (!geometry && row.geometry_bbox instanceof Uint8Array) {
-                const buffer = row.geometry_bbox.buffer.slice(
-                    row.geometry_bbox.byteOffset,
-                    row.geometry_bbox.byteOffset + row.geometry_bbox.byteLength
-                );
-                geometry = parseWKB(buffer);
+            // Fallback: Use lon/lat columns if they exist and are valid
+            else if (isValidCoordinate(row.lon) && isValidCoordinate(row.lat)) {
+                geometry = { type: 'Point', coordinates: [row.lon, row.lat] };
             }
             
             if (geometry) {
