@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale-1.0">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🗺️</text></svg>"></link>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🗺️</text></svg>">
+    </link>
     <title>GeoParquet Visualizer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -19,7 +22,37 @@
         }
     </script>
     <link href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        /* For drag-and-drop layer reordering */
+        .dragging {
+            opacity: 0.5;
+            background: #eef2ff;
+            /* A light primary color */
+        }
+
+        .drag-over {
+            border-top: 2px solid #4F46E5;
+        }
+
+        /* Allow pointer events on summary icon for better UX */
+        details>summary {
+            list-style: none;
+        }
+
+        details>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details>summary>svg {
+            pointer-events: none;
+        }
+
+        details[open]>summary>svg {
+            transform: rotate(180deg);
+        }
+    </style>
 </head>
+
 <body class="h-screen w-screen overflow-hidden bg-gray-50">
     <!-- Main Layout -->
     <div class="relative h-full w-full">
@@ -27,244 +60,235 @@
         <div id="map" class="absolute inset-0 w-full h-full"></div>
 
         <!-- Toggle Sidebar Button (only visible when sidebar is closed) -->
-        <button id="toggle-sidebar-outer" class="fixed top-4 left-4 z-20 p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-opacity duration-300">
+        <button id="toggle-sidebar-outer"
+            class="fixed top-4 left-4 z-20 p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-opacity duration-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
             </svg>
         </button>
 
         <!-- Sidebar -->
-        <div id="sidebar" class="fixed top-0 left-0 z-10 w-full md:w-[420px] lg:w-[480px] h-full transform transition-transform duration-300">
+        <div id="sidebar"
+            class="fixed top-0 left-0 z-10 w-full md:w-[420px] lg:w-[480px] h-full transform transition-transform duration-300">
             <!-- Sidebar Content -->
-            <div class="h-full bg-white/95 backdrop-blur shadow-xl overflow-y-auto">
+            <div class="h-full bg-white/95 backdrop-blur shadow-xl overflow-y-auto flex flex-col">
                 <!-- Header -->
                 <div class="px-6 py-6 border-b border-gray-200 bg-white">
                     <div class="flex items-center justify-between mb-2">
+                        <h1 class="text-2xl font-bold text-gray-900">GeoParquet Visualizer</h1>
                         <button id="toggle-sidebar-inner" class="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 6h16M4 12h16m-7 6h7"></path>
                             </svg>
                         </button>
                     </div>
-                    <h1 class="text-2xl font-bold text-gray-900">GeoParquet Visualizer</h1>
-                    <p class="text-sm text-gray-600 mt-1">Visualize spatial data from GeoParquet and Parquet files. Uses geometry column or lat lon columns as fallback. <br><a href="https://github.com/do-me/geoparquet-visualizer/" target="_blank">github.com/do-me/geoparquet-visualizer</a></p>
+                    <p class="text-sm text-gray-600 mt-1">Visualize spatial data from GeoParquet and Parquet files. Uses
+                        geometry column or lat/lon as fallback. <br><a
+                            href="https://github.com/do-me/geoparquet-visualizer/"
+                            target="_blank">github.com/do-me/geoparquet-visualizer</a></p>
                 </div>
 
-                <!-- Settings (always visible) -->
+                <!-- Settings & Upload (always visible) -->
                 <div class="p-6 border-b border-gray-200 bg-gray-50/50">
-                    <h3 class="text-base font-semibold text-gray-900 mb-4">Settings</h3>
-                    <div class="space-y-6">
-                        <!-- Feature Limit, 500k seems reasonable considering modern devices-->
-                        <div class="relative">
-                            <label for="limit-input" class="block text-sm font-medium text-gray-900 mb-1">
-                                Feature Limit
-                                <span class="ml-1 text-xs text-gray-500">(max points to load)</span>
-                            </label>
-                            <div class="relative mt-1 rounded-md shadow-sm">
-                                <input type="number" 
-                                       id="limit-input" 
-                                       value="100000" 
-                                       min="1"
-                                       class="block w-full rounded-lg border-gray-200 px-4 pr-16
-                                              text-gray-900 placeholder:text-gray-400
-                                              focus:border-primary focus:ring-primary
-                                              sm:text-sm sm:leading-6
-                                              transition-colors duration-200">
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
-                                    <span class="text-gray-400 sm:text-sm">points</span>
-                                </div>
+                    <!-- Upload Zone -->
+                    <div id="drop-zone"
+                        class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors duration-200 cursor-pointer bg-white/50 backdrop-blur mb-6">
+                        <div class="space-y-3">
+                            <div class="inline-flex p-2 rounded-full bg-primary/10">
+                                <svg class="w-6 h-6 text-primary" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                    <path
+                                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4-4m4-4h8m-4-4v8m-12 4h.02"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                            <div>
+                                <label for="file-input"
+                                    class="relative cursor-pointer rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
+                                    <span class="text-base">Upload files</span>
+                                    <input id="file-input" type="file" class="sr-only" accept=".parquet,.geoparquet"
+                                        multiple>
+                                </label>
+                                <p class="text-sm text-gray-500 mt-1">or drag and drop</p>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Update Strategy -->
-                        <div class="relative">
+                    <!-- Feature Limit -->
+                    <div class="relative">
+                        <label for="limit-input" class="block text-sm font-medium text-gray-900 mb-1">
+                            Feature Limit
+                            <span class="ml-1 text-xs text-gray-500">(per file)</span>
+                        </label>
+                        <div class="relative mt-1 rounded-md shadow-sm">
+                            <input type="number" id="limit-input" value="100000" min="1"
+                                class="block w-full rounded-lg border-gray-200 px-4 pr-16 text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary sm:text-sm sm:leading-6 transition-colors duration-200">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
+                                <span class="text-gray-400 sm:text-sm">points</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options (Collapsible) -->
+                    <details class="mt-4">
+                        <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-primary">
+                            <span class="flex items-center gap-1">
+                                <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                                Advanced Options
+                            </span>
+                        </summary>
+                        <div class="relative mt-4 pl-5">
                             <label class="block text-sm font-medium text-gray-900 mb-1">
                                 Update Strategy
                                 <span class="ml-1 text-xs text-gray-500">(how to refresh the map)</span>
                             </label>
                             <div class="mt-2 space-y-2">
-                                <div class="flex items-center">
-                                    <input type="radio" 
-                                           id="strategy-final" 
-                                           name="update-strategy" 
-                                           value="final" 
-                                           checked
-                                           class="h-4 w-4 border-gray-300 text-primary focus:ring-primary">
-                                    <label for="strategy-final" class="ml-2 block text-sm text-gray-900">
-                                        Only when finished
-                                        <span class="text-xs text-gray-500 block">Better performance with large files</span>
-                                    </label>
+                                <div class="flex items-center"><input type="radio" id="strategy-final"
+                                        name="update-strategy" value="final" checked
+                                        class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"><label
+                                        for="strategy-final" class="ml-2 block text-sm text-gray-900">Only when finished
+                                        <span class="text-xs text-gray-500 block">Best for large files</span></label>
                                 </div>
-                                <div class="flex items-center">
-                                    <input type="radio" 
-                                           id="strategy-live" 
-                                           name="update-strategy" 
-                                           value="live"
-                                           class="h-4 w-4 border-gray-300 text-primary focus:ring-primary">
-                                    <label for="strategy-live" class="ml-2 block text-sm text-gray-900">
-                                        Live updates
-                                        <span class="text-xs text-gray-500 block">See changes immediately (for smaller files)</span>
-                                    </label>
-                                </div>
+                                <div class="flex items-center"><input type="radio" id="strategy-live"
+                                        name="update-strategy" value="live"
+                                        class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"><label
+                                        for="strategy-live" class="ml-2 block text-sm text-gray-900">Live updates <span
+                                            class="text-xs text-gray-500 block">For smaller files</span></label></div>
                             </div>
-                            <p class="mt-1.5 text-xs text-gray-500">
-                                Choose "Live" for immediate updates or "Only when finished" for better performance with large files
-                            </p>
                         </div>
+                    </details>
+                </div>
+
+                <!-- Layer List -->
+                <div id="layer-list-container" class="flex-grow p-6 space-y-4 overflow-y-auto">
+                    <!-- Layer cards will be inserted here -->
+                    <div id="initial-message" class="text-center text-gray-500 pt-8">
+                        <p>No layers loaded.</p>
+                        <p class="text-sm">Upload a Parquet file to begin.</p>
                     </div>
                 </div>
 
-                <!-- Initial Upload State (shown when no file is loaded) -->
-                <div id="initial-upload" class="p-6">
-                    <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary transition-colors duration-200 cursor-pointer bg-white/50 backdrop-blur">
-                        <div class="space-y-4">
-                            <div class="inline-flex p-3 rounded-full bg-primary/10">
-                                <svg class="w-8 h-8 text-primary" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4-4m4-4h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
-                            </div>
-                            <div>
-                                <label for="file-input" class="relative cursor-pointer rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
-                                    <span class="text-base">Upload a file</span>
-                                    <input id="file-input" type="file" class="sr-only" accept=".parquet,.geoparquet">
-                                </label>
-                                <p class="text-sm text-gray-500 mt-1">or drag and drop</p>
-                                <p class="text-xs text-gray-400 mt-2">Supported: .parquet, .geoparquet</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- File Controls (initially hidden) -->
-                <div id="controls" class="p-6 space-y-6 hidden">
-                    <!-- File Info with Controls -->
-                    <div class="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg p-4">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-3">
-                                <div class="flex-shrink-0">
-                                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <h3 class="text-sm font-medium text-gray-900" id="file-info">No file selected</h3>
-                            </div>
-                            <div class="flex gap-1">
-                                <button id="reload-file" 
-                                        class="p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" 
-                                        title="Reload file with current settings">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                </button>
-                                <button id="remove-file" 
-                                        class="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" 
-                                        title="Remove file">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Statistics -->
-                    <div class="grid grid-cols-3 gap-4">
-                        <div class="bg-white rounded-lg px-4 py-5 shadow-sm border border-gray-100">
-                            <dt class="text-sm font-medium text-gray-500">Batches</dt>
-                            <dd class="mt-1.5 text-[1.1rem] leading-tight font-semibold text-primary break-all" id="batch-counter">0</dd>
-                        </div>
-                        <div class="bg-white rounded-lg px-4 py-5 shadow-sm border border-gray-100">
-                            <dt class="text-sm font-medium text-gray-500">Processed</dt>
-                            <dd class="mt-1.5 text-[1.1rem] leading-tight font-semibold text-primary break-all" id="processed-counter">0</dd>
-                        </div>
-                        <div class="bg-white rounded-lg px-4 py-5 shadow-sm border border-gray-100">
-                            <dt class="text-sm font-medium text-gray-500">On Map</dt>
-                            <dd class="mt-1.5 text-[1.1rem] leading-tight font-semibold text-primary break-all" id="map-counter">0</dd>
-                        </div>
-                    </div>
-
-                    <!-- Status -->
-                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
-                        <h3 class="text-sm font-medium text-gray-900 mb-3 flex items-center space-x-2">
-                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>Status</span>
-                        </h3>
-                        <pre id="status" class="text-sm bg-gray-50 rounded-lg p-3 font-mono whitespace-pre-wrap text-gray-600 border border-gray-100">Waiting for file...</pre>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
 
+    <!-- Template for a single layer card -->
+    <template id="layer-card-template">
+        <div class="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg p-4 cursor-grab" draggable="true">
+            <!-- Main Info -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3 overflow-hidden">
+                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <h3 class="file-info text-sm font-medium text-gray-900 truncate" title="Filename">No file selected
+                    </h3>
+                </div>
+                <div class="flex gap-1 flex-shrink-0">
+                    <button
+                        class="toggle-visibility p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg"
+                        title="Toggle visibility">
+                        <!-- Eye icon will be inserted here -->
+                    </button>
+                    <button class="reload-file p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg"
+                        title="Reload file with current settings">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </button>
+                    <button class="remove-file p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                        title="Remove file">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Statistics -->
+            <div class="grid grid-cols-3 gap-2 mt-3">
+                <div class="bg-white/70 rounded px-2.5 py-2">
+                    <dt class="text-xs font-medium text-gray-500">Processed</dt>
+                    <dd class="processed-counter mt-1 text-sm font-semibold text-primary">0</dd>
+                </div>
+                <div class="bg-white/70 rounded px-2.5 py-2">
+                    <dt class="text-xs font-medium text-gray-500">On Map</dt>
+                    <dd class="map-counter mt-1 text-sm font-semibold text-primary">0</dd>
+                </div>
+                <div class="bg-white/70 rounded px-2.5 py-2">
+                    <dt class="text-xs font-medium text-gray-500">Batches</dt>
+                    <dd class="batch-counter mt-1 text-sm font-semibold text-primary">0</dd>
+                </div>
+            </div>
+            <!-- Status -->
+            <div class="mt-3">
+                <pre
+                    class="status text-xs bg-gray-50 rounded p-2 font-mono whitespace-pre-wrap text-gray-600 border border-gray-100">Waiting...</pre>
+            </div>
+        </div>
+    </template>
+
     <script src="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.js"></script>
     <script type="module">
+        // --- DOM Elements ---
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const limitInput = document.getElementById('limit-input');
-        const updateStrategyInputs = document.querySelectorAll('input[name="update-strategy"]');
-        const statusEl = document.getElementById('status');
-        const batchCounterEl = document.getElementById('batch-counter');
-        const processedCounterEl = document.getElementById('processed-counter');
-        const mapCounterEl = document.getElementById('map-counter');
-        const fileInfoEl = document.getElementById('file-info');
-        const initialUploadEl = document.getElementById('initial-upload');
-        const controlsEl = document.getElementById('controls');
         const sidebarEl = document.getElementById('sidebar');
         const toggleSidebarOuterBtn = document.getElementById('toggle-sidebar-outer');
         const toggleSidebarInnerBtn = document.getElementById('toggle-sidebar-inner');
-        const reloadFileBtn = document.getElementById('reload-file');
-        const removeFileBtn = document.getElementById('remove-file');
+        const layerListContainer = document.getElementById('layer-list-container');
+        const layerCardTemplate = document.getElementById('layer-card-template');
+        const initialMessage = document.getElementById('initial-message');
 
-        // Sidebar Toggle
-        let isSidebarOpen = true; // Start with sidebar open
+        const eyeIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`;
+        const eyeOffIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>`;
+
+        // --- State Management ---
+        let layers = new Map(); // Using a Map to store layer state by ID
+        let layerOrder = []; // Array of layer IDs to manage rendering order
+        let nextLayerId = 0;
+
+        // --- Sidebar Toggle ---
+        let isSidebarOpen = true;
         toggleSidebarOuterBtn.classList.add('opacity-0', 'pointer-events-none');
-        
         function toggleSidebar() {
             isSidebarOpen = !isSidebarOpen;
             sidebarEl.classList.toggle('-translate-x-full', !isSidebarOpen);
             toggleSidebarOuterBtn.classList.toggle('opacity-0', isSidebarOpen);
             toggleSidebarOuterBtn.classList.toggle('pointer-events-none', isSidebarOpen);
+            setTimeout(() => map.resize(), 350);
         }
-        
         toggleSidebarOuterBtn.addEventListener('click', toggleSidebar);
         toggleSidebarInnerBtn.addEventListener('click', toggleSidebar);
 
-        let worker;
-        let geoJsonFeatures = [];
-        let isUpdateScheduled = false;
-        let currentFile = null;
-
-        reloadFileBtn.addEventListener('click', () => {
-            if (currentFile) {
-                handleFile(currentFile);
-            }
-        });
-
-        removeFileBtn.addEventListener('click', () => {
-            currentFile = null;
-            resetStateAndMap();
-            controlsEl.classList.add('hidden');
-            initialUploadEl.classList.remove('hidden');
-            fileInput.value = '';
-            logStatus("File removed. Ready for new file...");
-        });
-
+        // --- Drag & Drop for Upload ---
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
             dropZone.addEventListener(e, preventDefaults, false);
             document.body.addEventListener(e, preventDefaults, false);
         });
-        ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, highlight, false));
-        ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, unhighlight, false));
+        ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('border-primary'), false));
+        ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('border-primary'), false));
         dropZone.addEventListener('drop', handleDrop, false);
         dropZone.addEventListener('click', () => fileInput.click(), false);
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                [...e.target.files].forEach(handleFile);
+                fileInput.value = '';
+            }
+        });
 
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
-        function highlight() { dropZone.classList.add('border-primary'); }
-        function unhighlight() { dropZone.classList.remove('border-primary'); }
-        function handleDrop(e) { handleFile(e.dataTransfer.files[0]); }
+        function handleDrop(e) { [...e.dataTransfer.files].forEach(handleFile); }
 
+        // --- Map Initialization ---
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://tiles.openfreemap.org/styles/liberty',
@@ -274,215 +298,311 @@
 
         map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
-        map.on('load', () => {
-            logStatus("Map ready. Waiting for file...");
-            map.addSource('geoparquet-data', {
-                type: 'geojson',
-                data: { type: 'FeatureCollection', features: [] },
-                promoteId: 'id'
-            });
+        // --- Layer Card & State Management ---
+        function createLayer(file) {
+            const layerId = `layer-${nextLayerId++}`;
+            const card = layerCardTemplate.content.cloneNode(true).firstElementChild;
+            card.dataset.id = layerId;
 
-            // --- Point Layer ---
-            map.addLayer({
-                id: 'geoparquet-points',
-                type: 'circle',
-                source: 'geoparquet-data',
-                filter: ['==', '$type', 'Point'],
-                paint: {
-                    'circle-radius': 4,
-                    'circle-color': '#ff0000',
-                    'circle-opacity': 0.7,
-                    'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0],
-                    'circle-stroke-color': '#ffffff'
+            const fileInfoEl = card.querySelector('.file-info');
+            fileInfoEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+            fileInfoEl.title = file.name;
+
+            const layerState = {
+                id: layerId,
+                file: file,
+                card: card,
+                worker: null,
+                geoJsonFeatures: [],
+                isUpdateScheduled: false,
+                isVisible: true,
+                status: (message, isError = false) => {
+                    const statusEl = card.querySelector('.status');
+                    statusEl.textContent = message;
+                    statusEl.className = `status text-xs font-mono whitespace-pre-wrap rounded p-2 ${isError ? 'bg-red-50 text-red-800 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-100'}`;
+                    if (isError) console.error(`[${layerId}] ${message}`);
+                },
+                updateCounter: (type, value) => {
+                    const el = card.querySelector(`.${type}-counter`);
+                    if (el) el.textContent = value.toLocaleString();
+                }
+            };
+
+            card.querySelector('.reload-file').addEventListener('click', () => processFile(layerState));
+            card.querySelector('.remove-file').addEventListener('click', () => removeLayer(layerId));
+            const visibilityBtn = card.querySelector('.toggle-visibility');
+            visibilityBtn.innerHTML = eyeIcon;
+            visibilityBtn.addEventListener('click', () => toggleLayerVisibility(layerId));
+
+            layerListContainer.prepend(card);
+            initialMessage.style.display = 'none';
+
+            layers.set(layerId, layerState);
+            layerOrder.unshift(layerId);
+
+            addDragAndDropForCard(card);
+            return layerState;
+        }
+
+        function removeLayer(layerId) {
+            const layer = layers.get(layerId);
+            if (!layer) return;
+
+            layer.worker?.terminate();
+            ['points', 'lines', 'polygons', 'polygon-outline'].forEach(type => {
+                const mapLayerId = `${layer.id}-${type}`;
+                if (map.getLayer(mapLayerId)) map.removeLayer(mapLayerId);
+            });
+            if (map.getSource(layer.id)) map.removeSource(layer.id);
+
+            layer.card.remove();
+            layers.delete(layerId);
+            layerOrder = layerOrder.filter(id => id !== layerId);
+
+            if (layers.size === 0) {
+                initialMessage.style.display = 'block';
+            }
+        }
+
+        function toggleLayerVisibility(layerId) {
+            const layer = layers.get(layerId);
+            if (!layer) return;
+            layer.isVisible = !layer.isVisible;
+
+            const visibility = layer.isVisible ? 'visible' : 'none';
+            ['points', 'lines', 'polygons', 'polygon-outline'].forEach(type => {
+                const mapLayerId = `${layer.id}-${type}`;
+                if (map.getLayer(mapLayerId)) {
+                    map.setLayoutProperty(mapLayerId, 'visibility', visibility);
                 }
             });
 
-            // --- LineString Layer ---
-            map.addLayer({
-                id: 'geoparquet-lines',
-                type: 'line',
-                source: 'geoparquet-data',
-                filter: ['==', '$type', 'LineString'],
-                paint: {
-                    'line-color': '#10B981', // secondary color
-                    'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2],
-                }
-            });
-            
-            // --- Polygon Fill Layer ---
-            map.addLayer({
-                id: 'geoparquet-polygons',
-                type: 'fill',
-                source: 'geoparquet-data',
-                // FIX: This is the correct and simplest way to filter for Polygons and MultiPolygons in a 'fill' layer.
-                filter: ['==', '$type', 'Polygon'],
-                paint: {
-                    'fill-color': '#4F46E5', // primary color
-                    'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.5, 0.3]
-                }
-            });
-
-            // --- Polygon Outline Layer ---
-            map.addLayer({
-                id: 'geoparquet-polygon-outline',
-                type: 'line',
-                source: 'geoparquet-data',
-                // FIX: This is the correct and simplest way to filter for Polygons and MultiPolygons in a 'line' layer.
-                filter: ['==', '$type', 'Polygon'],
-                paint: {
-                    'line-color': '#4F46E5', // primary color
-                    'line-width': 1
-                }
-            });
-            
-            // --- Hover and Popup Logic ---
-            const popup = new maplibregl.Popup({
-                closeButton: false,
-                closeOnClick: false,
-                maxWidth: '350px',
-                className: 'bg-white/95 backdrop-blur shadow-lg rounded-lg'
-            });
-            let hoveredFeatureId = null;
-            const interactiveLayers = ['geoparquet-points', 'geoparquet-polygons', 'geoparquet-lines'];
-
-            interactiveLayers.forEach(layerId => {
-                map.on('mousemove', layerId, (e) => {
-                    map.getCanvas().style.cursor = 'pointer';
-                    if (e.features.length > 0) {
-                        if (e.features[0].id !== undefined) {
-                            if (hoveredFeatureId !== null) {
-                                map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: false });
-                            }
-                            hoveredFeatureId = e.features[0].id;
-                            map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: true });
-                        }
-                        
-                        const properties = Object.entries(e.features[0].properties || {})
-                            .filter(([key]) => !key.toLowerCase().includes('geometry')) // Filter out geometry-related columns
-                            .map(([key, value]) => `<div class="mb-1"><span class="font-medium text-gray-700">${key}:</span> <span class="text-gray-900 break-all">${value}</span></div>`)
-                            .join('');
-                        
-                        popup.setLngLat(e.lngLat).setHTML(`<div class="p-2 text-sm">${properties}</div>`).addTo(map);
-                    }
-                });
-
-                map.on('mouseleave', layerId, () => {
-                    map.getCanvas().style.cursor = '';
-                    if (hoveredFeatureId !== null) {
-                        map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: false });
-                    }
-                    hoveredFeatureId = null;
-                    popup.remove();
-                });
-            });
-        });
-
-        fileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) handleFile(file);
-        });
+            layer.card.querySelector('.toggle-visibility').innerHTML = layer.isVisible ? eyeIcon : eyeOffIcon;
+        }
 
         function handleFile(file) {
-            if (!file) return;
+            if (!file || !map.isStyleLoaded()) {
+                setTimeout(() => handleFile(file), 100);
+                return;
+            };
+            const newLayer = createLayer(file);
+            addLayerToMap(newLayer.id);
+            processFile(newLayer);
+        }
 
-            resetStateAndMap();
-            currentFile = file;
-            initialUploadEl.classList.add('hidden');
-            controlsEl.classList.remove('hidden');
-            fileInfoEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-            logStatus(`Processing: ${file.name}`);
+        function processFile(layer) {
+            resetLayerState(layer);
+            layer.status(`Processing: ${layer.file.name}`);
 
-            if (worker) worker.terminate();
-            
+            layer.worker?.terminate();
+
             const featureLimit = parseInt(limitInput.value, 10);
             if (isNaN(featureLimit) || featureLimit <= 0) {
-                logStatus("Error: Invalid feature limit.", true);
+                layer.status("Error: Invalid feature limit.", true);
                 return;
             }
 
-            worker = new Worker('./worker.js', { type: 'module' });
-            worker.onmessage = handleWorkerMessage;
-            worker.postMessage({ type: 'processFile', file: file, limit: featureLimit });
+            layer.worker = new Worker('./worker.js', { type: 'module' });
+            layer.worker.onmessage = (event) => handleWorkerMessage(event, layer.id);
+            layer.worker.postMessage({ type: 'processFile', file: layer.file, limit: featureLimit });
         }
 
-        function handleWorkerMessage(event) {
+        function resetLayerState(layer) {
+            layer.geoJsonFeatures = [];
+            layer.isUpdateScheduled = false;
+
+            const source = map.getSource(layer.id);
+            if (source) {
+                source.setData({ type: 'FeatureCollection', features: [] });
+            }
+
+            layer.updateCounter('batch', 0);
+            layer.updateCounter('processed', 0);
+            layer.updateCounter('map', 0);
+        }
+
+        function handleWorkerMessage(event, layerId) {
+            const layer = layers.get(layerId);
+            if (!layer) return;
+
             const { type, payload } = event.data;
             const updateStrategy = document.querySelector('input[name="update-strategy"]:checked').value;
 
             switch (type) {
                 case 'status':
-                    logStatus(payload.message);
-                    if (payload.batchCount) batchCounterEl.textContent = formatNumber(payload.batchCount);
-                    if (payload.totalProcessed) processedCounterEl.textContent = formatNumber(payload.totalProcessed);
+                    layer.status(payload.message);
+                    if (payload.batchCount) layer.updateCounter('batch', payload.batchCount);
+                    if (payload.totalProcessed) layer.updateCounter('processed', payload.totalProcessed);
                     break;
                 case 'features':
-                    geoJsonFeatures.push(...payload);
+                    payload.forEach(f => f.id = `${layer.id}-${f.id}`);
+                    layer.geoJsonFeatures.push(...payload);
+
                     if (updateStrategy === 'live') {
-                        scheduleMapUpdate();
+                        scheduleMapUpdate(layer);
                     } else {
-                        const count = geoJsonFeatures.length;
-                        mapCounterEl.textContent = formatNumber(count);
-                        mapCounterEl.title = formatNumber(count);
+                        layer.updateCounter('map', layer.geoJsonFeatures.length);
                     }
                     break;
                 case 'done':
-                    const finalMessage = payload.limitReached 
-                        ? `✅ Stopped after hitting limit of ${formatNumber(payload.limit)}. Total: ${processedCounterEl.textContent} features`
-                        : `✅ Finished streaming. Total: ${processedCounterEl.textContent} features`;
-                    logStatus(finalMessage);
+                    const finalMsg = payload.limitReached
+                        ? `✅ Stopped at limit of ${payload.limit.toLocaleString()}.`
+                        : `✅ Finished streaming.`;
+                    layer.status(finalMsg);
 
-                    if (updateStrategy === 'final') forceFinalUpdate();
-                    
-                    fitMapToBounds();
+                    if (updateStrategy === 'final') forceFinalUpdate(layer);
+
+                    fitMapToBounds(layer.geoJsonFeatures);
                     break;
                 case 'error':
-                    logStatus(`❌ Worker Error: ${payload.message}`, true);
+                    layer.status(`❌ Worker Error: ${payload.message}`, true);
                     break;
             }
         }
 
-        function resetStateAndMap() {
-            geoJsonFeatures = [];
-            isUpdateScheduled = false;
-
-            if (map.loaded() && map.getSource('geoparquet-data')) {
-                map.getSource('geoparquet-data').setData({ type: 'FeatureCollection', features: [] });
-            }
-
-            batchCounterEl.textContent = '0';
-            processedCounterEl.textContent = '0';
-            mapCounterEl.textContent = '0';
-        }
-        
-        function scheduleMapUpdate() {
-            if (!isUpdateScheduled) {
-                isUpdateScheduled = true;
-                requestAnimationFrame(updateMapData);
+        function scheduleMapUpdate(layer) {
+            if (!layer.isUpdateScheduled) {
+                layer.isUpdateScheduled = true;
+                requestAnimationFrame(() => updateMapData(layer));
             }
         }
 
-        function updateMapData() {
-            if (map.getSource('geoparquet-data')) {
-                map.getSource('geoparquet-data').setData({ type: 'FeatureCollection', features: geoJsonFeatures });
+        function updateMapData(layer) {
+            if (!layer) return;
+            const source = map.getSource(layer.id);
+            if (source) {
+                source.setData({ type: 'FeatureCollection', features: layer.geoJsonFeatures });
             }
-            const count = geoJsonFeatures.length;
-            mapCounterEl.textContent = formatNumber(count);
-            mapCounterEl.title = formatNumber(count);
-            isUpdateScheduled = false;
+            layer.updateCounter('map', layer.geoJsonFeatures.length);
+            layer.isUpdateScheduled = false;
         }
 
-        function forceFinalUpdate() {
-            isUpdateScheduled = false; // Cancel any pending animation frame
-            updateMapData();
+        function forceFinalUpdate(layer) {
+            layer.isUpdateScheduled = false;
+            updateMapData(layer);
         }
 
-        function formatNumber(num) { return num.toLocaleString(); }
-        
-        function fitMapToBounds() {
-            if (geoJsonFeatures.length === 0 || !map.loaded()) return;
+        function addLayerToMap(layerId) {
+            if (map.getSource(layerId)) return;
+
+            map.addSource(layerId, {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] },
+                promoteId: 'id'
+            });
+
+            const layerDefinitions = [
+                { id: `${layerId}-points`, type: 'circle', filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#ff0000', 'circle-opacity': 0.7, 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0], 'circle-stroke-color': '#ffffff' } },
+                { id: `${layerId}-lines`, type: 'line', filter: ['==', '$type', 'LineString'], paint: { 'line-color': '#10B981', 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] } },
+                { id: `${layerId}-polygons`, type: 'fill', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': '#4F46E5', 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.5, 0.3] } },
+                { id: `${layerId}-polygon-outline`, type: 'line', filter: ['==', '$type', 'Polygon'], paint: { 'line-color': '#4F46E5', 'line-width': 1 } },
+            ];
+
+            layerDefinitions.forEach(def => {
+                map.addLayer({ ...def, source: layerId });
+                setupLayerInteractivity(def.id);
+            });
+        }
+
+        function reorderMapLayers() {
+            // This order defines the global stacking context.
+            // Items at the end of the array are drawn on top.
+            const globalLayerOrder = ['polygons', 'polygon-outline', 'lines', 'points'];
+
+            // Loop through our visual layer order (top card is first).
+            // `moveLayer` moves a layer to the top of the stack, so we
+            // reverse the order to ensure the top card ends up on top.
+            [...layerOrder].reverse().forEach(layerId => {
+                globalLayerOrder.forEach(type => {
+                    const mapLayerId = `${layerId}-${type}`;
+                    if (map.getLayer(mapLayerId)) {
+                        map.moveLayer(mapLayerId);
+                    }
+                });
+            });
+        }
+
+        // --- Map Interactivity (Popup, Hover) ---
+        const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '350px', className: 'bg-white/95 backdrop-blur shadow-lg rounded-lg' });
+        let hoveredFeature = null;
+
+        // --- This entire function needs to be replaced ---
+
+        // This flag will be used to ensure only one popup is shown per mouse move event
+        let frameRequest = null;
+
+        map.on('mousemove', () => {
+            // Reset the flag on every single mouse move.
+            // This allows the next 'mousemove' event on a layer to win.
+            frameRequest = null;
+        });
+
+        function setupLayerInteractivity(mapLayerId) {
+            map.on('mousemove', mapLayerId, (e) => {
+                // If another layer has already handled this mouse event, do nothing.
+                if (frameRequest) return;
+                // If there are no features, do nothing.
+                if (!e.features || e.features.length === 0) return;
+
+                // Set the flag to block other layers from processing this same event.
+                frameRequest = true;
+                map.getCanvas().style.cursor = 'pointer';
+
+                const currentFeature = e.features[0];
+
+                // --- Popup Logic (always runs for the top feature) ---
+                const properties = Object.entries(currentFeature.properties || {})
+                    .filter(([key]) => !key.toLowerCase().includes('geometry'))
+                    .map(([key, value]) => `<div class="mb-1"><span class="font-medium text-gray-700">${key}:</span> <span class="text-gray-900 break-all">${value}</span></div>`)
+                    .join('');
+                popup.setLngLat(e.lngLat).setHTML(`<div class="p-2 text-sm">${properties}</div>`).addTo(map);
+
+                // --- Hover State Logic (only if feature has a valid ID) ---
+                const hasValidId = currentFeature.id !== undefined && currentFeature.id !== null;
+
+                // Clear previous hover state if it exists and is different from the current one
+                if (hoveredFeature && (!hasValidId || hoveredFeature.id !== currentFeature.id)) {
+                    if (map.getSource(hoveredFeature.source)) {
+                        map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: false });
+                    }
+                    hoveredFeature = null;
+                }
+
+                // Set new hover state
+                if (hasValidId && (!hoveredFeature || hoveredFeature.id !== currentFeature.id)) {
+                    hoveredFeature = { id: currentFeature.id, source: currentFeature.source };
+                    map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: true });
+                }
+            });
+
+            map.on('mouseleave', mapLayerId, () => {
+                // This logic is simpler: when the mouse leaves a layer, clear any active hover.
+                map.getCanvas().style.cursor = '';
+                if (hoveredFeature) {
+                    if (map.getSource(hoveredFeature.source)) {
+                        map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: false });
+                    }
+                }
+                hoveredFeature = null;
+                popup.remove();
+            });
+        }
+        map.on('style.load', () => {
+            for (const layerId of layerOrder) {
+                const layer = layers.get(layerId);
+                if (layer) {
+                    addLayerToMap(layerId);
+                    updateMapData(layer);
+                }
+            }
+            reorderMapLayers();
+        });
+
+        function fitMapToBounds(features) {
+            if (features.length === 0 || !map.loaded()) return;
 
             const bounds = new maplibregl.LngLatBounds();
-            geoJsonFeatures.forEach(feature => {
+            features.forEach(feature => {
                 const type = feature.geometry?.type;
                 const coords = feature.geometry?.coordinates;
                 if (!coords) return;
@@ -495,14 +615,78 @@
 
             if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
         }
-        
-        function logStatus(message, isError = false) {
-            statusEl.textContent = message;
-            statusEl.className = isError 
-                ? 'text-sm bg-red-50 text-red-800 rounded-lg p-3 font-mono whitespace-pre-wrap border border-red-200'
-                : 'text-sm bg-gray-50 text-gray-700 rounded-lg p-3 font-mono whitespace-pre-wrap border border-gray-100';
-            if (isError) console.error(message);
+
+        // --- Drag & Drop for Layer Reordering ---
+        let draggedItem = null;
+
+        // FIX: Add drop and dragenter listeners to the container for reliable reordering
+        layerListContainer.addEventListener('dragenter', e => {
+            e.preventDefault();
+        });
+
+        layerListContainer.addEventListener('drop', () => {
+            if (!draggedItem) return;
+            draggedItem.classList.remove('dragging');
+            [...layerListContainer.children].forEach(child => child.classList.remove('drag-over'));
+
+            const newOrder = [...layerListContainer.children]
+                .map(child => child.dataset.id)
+                .filter(Boolean);
+            layerOrder = newOrder;
+            reorderMapLayers();
+
+            draggedItem = null;
+        });
+
+        function addDragAndDropForCard(card) {
+            card.addEventListener('dragstart', (e) => {
+                // Capture the element reference immediately
+                const draggedElement = e.currentTarget;
+                draggedItem = draggedElement; // This line is correct in your code
+
+                // Use the captured reference inside the timeout
+                setTimeout(() => {
+                    if (draggedElement) { // Good practice to check if it still exists
+                        draggedElement.classList.add('dragging');
+                    }
+                }, 0);
+            });
+
+            // This is the code snippet for the dragover event listener
+            card.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (!draggedItem) return;
+
+                const afterElement = getDragAfterElement(layerListContainer, e.clientY);
+                [...layerListContainer.children].forEach(child => child.classList.remove('drag-over'));
+
+                // FIX: Add a check for 'afterElement' before accessing its classList.
+                // This happens when dragging to the end of the list.
+                if (afterElement) {
+                    afterElement.classList.add('drag-over');
+                }
+
+                if (afterElement == null) {
+                    layerListContainer.appendChild(draggedItem);
+                } else {
+                    layerListContainer.insertBefore(draggedItem, afterElement);
+                }
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('[draggable="true"]:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
     </script>
 </body>
+
 </html>
