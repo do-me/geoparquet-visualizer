@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🗺️</text></svg>">
     </link>
@@ -49,6 +49,30 @@
 
         details[open]>summary>svg {
             transform: rotate(180deg);
+        }
+
+        /* Style for color picker inputs */
+        input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border: none;
+            border-radius: 0.375rem; /* rounded-md */
+            cursor: pointer;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border-radius: 0.375rem; /* rounded-md */
+            border: 1px solid #e5e7eb; /* gray-200 */
+        }
+        input[type="color"]::-moz-color-swatch {
+             border-radius: 0.375rem; /* rounded-md */
+             border: 1px solid #e5e7eb; /* gray-200 */
         }
     </style>
 </head>
@@ -232,6 +256,35 @@
                 <pre
                     class="status text-xs bg-gray-50 rounded p-2 font-mono whitespace-pre-wrap text-gray-600 border border-gray-100">Waiting...</pre>
             </div>
+            <!-- Style Controls -->
+            <details class="mt-3">
+                <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-primary">
+                    <span class="flex items-center gap-1">
+                        <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                        Layer Styling
+                    </span>
+                </summary>
+                <div class="mt-3 pl-5 grid grid-cols-2 gap-x-4 gap-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-800">Points</label>
+                        <input type="color" class="color-picker" data-style-type="points" value="#ff0000">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-800">Lines</label>
+                        <input type="color" class="color-picker" data-style-type="lines" value="#10B981">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-800">Polygon Fill</label>
+                        <input type="color" class="color-picker" data-style-type="polygonFill" value="#4F46E580"> <!-- Note 80 for 50% opacity -->
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-800">Polygon Outline</label>
+                        <input type="color" class="color-picker" data-style-type="polygonOutline" value="#4F46E5">
+                    </div>
+                </div>
+            </details>
         </div>
     </template>
 
@@ -316,6 +369,12 @@
                 geoJsonFeatures: [],
                 isUpdateScheduled: false,
                 isVisible: true,
+                colors: { // NEW: Store colors in state
+                    points: '#ff0000',
+                    lines: '#10B981',
+                    polygonFill: '#4f46e580', // 50% opacity
+                    polygonOutline: '#4F46E5',
+                },
                 status: (message, isError = false) => {
                     const statusEl = card.querySelector('.status');
                     statusEl.textContent = message;
@@ -327,6 +386,16 @@
                     if (el) el.textContent = value.toLocaleString();
                 }
             };
+            
+            // NEW: Set up color pickers
+            card.querySelectorAll('.color-picker').forEach(picker => {
+                const styleType = picker.dataset.styleType;
+                picker.value = layerState.colors[styleType];
+                picker.addEventListener('input', (e) => {
+                    layerState.colors[styleType] = e.target.value;
+                    updateLayerPaint(layerId, styleType, e.target.value);
+                });
+            });
 
             card.querySelector('.reload-file').addEventListener('click', () => processFile(layerState));
             card.querySelector('.remove-file').addEventListener('click', () => removeLayer(layerId));
@@ -379,6 +448,27 @@
 
             layer.card.querySelector('.toggle-visibility').innerHTML = layer.isVisible ? eyeIcon : eyeOffIcon;
         }
+        
+        // NEW: Function to update map paint properties live
+        function updateLayerPaint(layerId, styleType, color) {
+            const layer = layers.get(layerId);
+            if (!layer || !map.getLayer(`${layerId}-points`)) return; // Check if layers exist
+
+            switch(styleType) {
+                case 'points':
+                    map.setPaintProperty(`${layerId}-points`, 'circle-color', color);
+                    break;
+                case 'lines':
+                    map.setPaintProperty(`${layerId}-lines`, 'line-color', color);
+                    break;
+                case 'polygonFill':
+                    map.setPaintProperty(`${layerId}-polygons`, 'fill-color', color);
+                    break;
+                case 'polygonOutline':
+                    map.setPaintProperty(`${layerId}-polygon-outline`, 'line-color', color);
+                    break;
+            }
+        }
 
         function handleFile(file) {
             if (!file || !map.isStyleLoaded()) {
@@ -386,7 +476,7 @@
                 return;
             };
             const newLayer = createLayer(file);
-            addLayerToMap(newLayer.id);
+            addLayerToMap(newLayer); // Pass the whole layer state
             processFile(newLayer);
         }
 
@@ -482,7 +572,9 @@
             updateMapData(layer);
         }
 
-        function addLayerToMap(layerId) {
+        function addLayerToMap(layer) { // Pass the whole layer state
+            const layerId = layer.id;
+            const colors = layer.colors; // Get colors from state
             if (map.getSource(layerId)) return;
 
             map.addSource(layerId, {
@@ -492,10 +584,10 @@
             });
 
             const layerDefinitions = [
-                { id: `${layerId}-points`, type: 'circle', filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#ff0000', 'circle-opacity': 0.7, 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0], 'circle-stroke-color': '#ffffff' } },
-                { id: `${layerId}-lines`, type: 'line', filter: ['==', '$type', 'LineString'], paint: { 'line-color': '#10B981', 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] } },
-                { id: `${layerId}-polygons`, type: 'fill', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': '#4F46E5', 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.5, 0.3] } },
-                { id: `${layerId}-polygon-outline`, type: 'line', filter: ['==', '$type', 'Polygon'], paint: { 'line-color': '#4F46E5', 'line-width': 1 } },
+                { id: `${layerId}-points`, type: 'circle', filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 4, 'circle-color': colors.points, 'circle-opacity': 0.7, 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0], 'circle-stroke-color': '#ffffff' } },
+                { id: `${layerId}-lines`, type: 'line', filter: ['==', '$type', 'LineString'], paint: { 'line-color': colors.lines, 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] } },
+                { id: `${layerId}-polygons`, type: 'fill', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': colors.polygonFill, 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.7, 1] } }, // Adjusted opacity logic
+                { id: `${layerId}-polygon-outline`, type: 'line', filter: ['==', '$type', 'Polygon'], paint: { 'line-color': colors.polygonOutline, 'line-width': 1 } },
             ];
 
             layerDefinitions.forEach(def => {
@@ -505,13 +597,7 @@
         }
 
         function reorderMapLayers() {
-            // This order defines the global stacking context.
-            // Items at the end of the array are drawn on top.
             const globalLayerOrder = ['polygons', 'polygon-outline', 'lines', 'points'];
-
-            // Loop through our visual layer order (top card is first).
-            // `moveLayer` moves a layer to the top of the stack, so we
-            // reverse the order to ensure the top card ends up on top.
             [...layerOrder].reverse().forEach(layerId => {
                 globalLayerOrder.forEach(type => {
                     const mapLayerId = `${layerId}-${type}`;
@@ -525,42 +611,26 @@
         // --- Map Interactivity (Popup, Hover) ---
         const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '350px', className: 'bg-white/95 backdrop-blur shadow-lg rounded-lg' });
         let hoveredFeature = null;
-
-        // --- This entire function needs to be replaced ---
-
-        // This flag will be used to ensure only one popup is shown per mouse move event
         let frameRequest = null;
 
         map.on('mousemove', () => {
-            // Reset the flag on every single mouse move.
-            // This allows the next 'mousemove' event on a layer to win.
             frameRequest = null;
         });
 
         function setupLayerInteractivity(mapLayerId) {
             map.on('mousemove', mapLayerId, (e) => {
-                // If another layer has already handled this mouse event, do nothing.
                 if (frameRequest) return;
-                // If there are no features, do nothing.
                 if (!e.features || e.features.length === 0) return;
-
-                // Set the flag to block other layers from processing this same event.
                 frameRequest = true;
                 map.getCanvas().style.cursor = 'pointer';
-
                 const currentFeature = e.features[0];
-
-                // --- Popup Logic (always runs for the top feature) ---
                 const properties = Object.entries(currentFeature.properties || {})
                     .filter(([key]) => !key.toLowerCase().includes('geometry'))
                     .map(([key, value]) => `<div class="mb-1"><span class="font-medium text-gray-700">${key}:</span> <span class="text-gray-900 break-all">${value}</span></div>`)
                     .join('');
                 popup.setLngLat(e.lngLat).setHTML(`<div class="p-2 text-sm">${properties}</div>`).addTo(map);
 
-                // --- Hover State Logic (only if feature has a valid ID) ---
                 const hasValidId = currentFeature.id !== undefined && currentFeature.id !== null;
-
-                // Clear previous hover state if it exists and is different from the current one
                 if (hoveredFeature && (!hasValidId || hoveredFeature.id !== currentFeature.id)) {
                     if (map.getSource(hoveredFeature.source)) {
                         map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: false });
@@ -568,7 +638,6 @@
                     hoveredFeature = null;
                 }
 
-                // Set new hover state
                 if (hasValidId && (!hoveredFeature || hoveredFeature.id !== currentFeature.id)) {
                     hoveredFeature = { id: currentFeature.id, source: currentFeature.source };
                     map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: true });
@@ -576,7 +645,6 @@
             });
 
             map.on('mouseleave', mapLayerId, () => {
-                // This logic is simpler: when the mouse leaves a layer, clear any active hover.
                 map.getCanvas().style.cursor = '';
                 if (hoveredFeature) {
                     if (map.getSource(hoveredFeature.source)) {
@@ -591,7 +659,7 @@
             for (const layerId of layerOrder) {
                 const layer = layers.get(layerId);
                 if (layer) {
-                    addLayerToMap(layerId);
+                    addLayerToMap(layer);
                     updateMapData(layer);
                 }
             }
@@ -619,7 +687,6 @@
         // --- Drag & Drop for Layer Reordering ---
         let draggedItem = null;
 
-        // FIX: Add drop and dragenter listeners to the container for reliable reordering
         layerListContainer.addEventListener('dragenter', e => {
             e.preventDefault();
         });
@@ -640,19 +707,16 @@
 
         function addDragAndDropForCard(card) {
             card.addEventListener('dragstart', (e) => {
-                // Capture the element reference immediately
                 const draggedElement = e.currentTarget;
-                draggedItem = draggedElement; // This line is correct in your code
+                draggedItem = draggedElement;
 
-                // Use the captured reference inside the timeout
                 setTimeout(() => {
-                    if (draggedElement) { // Good practice to check if it still exists
+                    if (draggedElement) {
                         draggedElement.classList.add('dragging');
                     }
                 }, 0);
             });
 
-            // This is the code snippet for the dragover event listener
             card.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 if (!draggedItem) return;
@@ -660,8 +724,6 @@
                 const afterElement = getDragAfterElement(layerListContainer, e.clientY);
                 [...layerListContainer.children].forEach(child => child.classList.remove('drag-over'));
 
-                // FIX: Add a check for 'afterElement' before accessing its classList.
-                // This happens when dragging to the end of the list.
                 if (afterElement) {
                     afterElement.classList.add('drag-over');
                 }
