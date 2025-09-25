@@ -18,7 +18,7 @@
             }
         }
     </script>
-    <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <link href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
 </head>
 <body class="h-screen w-screen overflow-hidden bg-gray-50">
     <!-- Main Layout -->
@@ -208,14 +208,6 @@
         const batchCounterEl = document.getElementById('batch-counter');
         const processedCounterEl = document.getElementById('processed-counter');
         const mapCounterEl = document.getElementById('map-counter');
-        
-        // Create and add popup for feature tooltips
-        const popup = new maplibregl.Popup({
-            closeButton: false,
-            closeOnClick: false,
-            maxWidth: '300px',
-            className: 'bg-white/95 backdrop-blur shadow-lg rounded-lg'
-        });
         const fileInfoEl = document.getElementById('file-info');
         const initialUploadEl = document.getElementById('initial-upload');
         const controlsEl = document.getElementById('controls');
@@ -227,8 +219,6 @@
 
         // Sidebar Toggle
         let isSidebarOpen = true; // Start with sidebar open
-        
-        // Initialize outer button state
         toggleSidebarOuterBtn.classList.add('opacity-0', 'pointer-events-none');
         
         function toggleSidebar() {
@@ -238,17 +228,14 @@
             toggleSidebarOuterBtn.classList.toggle('pointer-events-none', isSidebarOpen);
         }
         
-        // Add click handlers to both buttons
         toggleSidebarOuterBtn.addEventListener('click', toggleSidebar);
         toggleSidebarInnerBtn.addEventListener('click', toggleSidebar);
 
         let worker;
         let geoJsonFeatures = [];
-        let featureQueue = [];
         let isUpdateScheduled = false;
-        let currentFile = null; // Store the current file reference
+        let currentFile = null;
 
-        // File management controls
         reloadFileBtn.addEventListener('click', () => {
             if (currentFile) {
                 handleFile(currentFile);
@@ -260,147 +247,128 @@
             resetStateAndMap();
             controlsEl.classList.add('hidden');
             initialUploadEl.classList.remove('hidden');
-            fileInput.value = ''; // Clear the file input
+            fileInput.value = '';
             logStatus("File removed. Ready for new file...");
         });
 
-        // Setup drag and drop
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
-            document.body.addEventListener(eventName, preventDefaults, false);
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+            dropZone.addEventListener(e, preventDefaults, false);
+            document.body.addEventListener(e, preventDefaults, false);
         });
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, highlight, false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, unhighlight, false);
-        });
-
+        ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, highlight, false));
+        ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, unhighlight, false));
         dropZone.addEventListener('drop', handleDrop, false);
-        // Add click handler for the drop zone
         dropZone.addEventListener('click', () => fileInput.click(), false);
 
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        function highlight(e) {
-            dropZone.classList.add('border-primary');
-        }
-
-        function unhighlight(e) {
-            dropZone.classList.remove('border-primary');
-        }
-
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const file = dt.files[0];
-            handleFile(file);
-        }
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+        function highlight() { dropZone.classList.add('border-primary'); }
+        function unhighlight() { dropZone.classList.remove('border-primary'); }
+        function handleDrop(e) { handleFile(e.dataTransfer.files[0]); }
 
         const map = new maplibregl.Map({
             container: 'map',
-            style: 'https://tiles.openfreemap.org/styles/liberty', // thanks a lot OpenFreeMap, amazing service!! :)
+            style: 'https://tiles.openfreemap.org/styles/liberty',
             center: [11.5, 48.1],
             zoom: 5
         });
 
-        // Add zoom and rotation controls
         map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
         map.on('load', () => {
             logStatus("Map ready. Waiting for file...");
             map.addSource('geoparquet-data', {
                 type: 'geojson',
-                data: { type: 'FeatureCollection', features: [] }
+                data: { type: 'FeatureCollection', features: [] },
+                promoteId: 'id'
             });
-            
-            // Add hover state for points
-            const pointLayer = {
+
+            // --- Point Layer ---
+            map.addLayer({
                 id: 'geoparquet-points',
                 type: 'circle',
                 source: 'geoparquet-data',
                 filter: ['==', '$type', 'Point'],
                 paint: {
                     'circle-radius': 4,
-                    'circle-color': '#ff0000', // plain red for higher contrast to background map
+                    'circle-color': '#ff0000',
                     'circle-opacity': 0.7,
-                    'circle-stroke-width': [
-                        'case',
-                        ['boolean', ['feature-state', 'hover'], false],
-                        2,
-                        0
-                    ],
+                    'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0],
                     'circle-stroke-color': '#ffffff'
                 }
-            };
-            map.addLayer(pointLayer);
-            
-            // Handle point hover events
-            let hoveredFeatureId = null;
-            
-            map.on('mousemove', 'geoparquet-points', (e) => {
-                if (e.features.length === 0) return;
-                
-                if (hoveredFeatureId !== null) {
-                    map.setFeatureState(
-                        { source: 'geoparquet-data', id: hoveredFeatureId },
-                        { hover: false }
-                    );
-                }
-                
-                hoveredFeatureId = e.features[0].id;
-                map.setFeatureState(
-                    { source: 'geoparquet-data', id: hoveredFeatureId },
-                    { hover: true }
-                );
-                
-                // Create tooltip content
-                const feature = e.features[0];
-                const properties = Object.entries(feature.properties || {})
-                    .map(([key, value]) => `<div class="mb-1">
-                        <span class="font-medium text-gray-700">${key}:</span> 
-                        <span class="text-gray-900">${value}</span>
-                    </div>`)
-                    .join('');
-                
-                popup.setLngLat(e.lngLat)
-                    .setHTML(`<div class="p-2 text-sm">${properties}</div>`)
-                    .addTo(map);
             });
-            
-            map.on('mouseleave', 'geoparquet-points', () => {
-                if (hoveredFeatureId !== null) {
-                    map.setFeatureState(
-                        { source: 'geoparquet-data', id: hoveredFeatureId },
-                        { hover: false }
-                    );
-                }
-                hoveredFeatureId = null;
-                popup.remove();
-            });
+
+            // --- LineString Layer ---
             map.addLayer({
                 id: 'geoparquet-lines',
                 type: 'line',
                 source: 'geoparquet-data',
                 filter: ['==', '$type', 'LineString'],
                 paint: {
-                    'line-color': '#10B981',
-                    'line-width': 2
+                    'line-color': '#10B981', // secondary color
+                    'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2],
                 }
             });
+            
+            // --- Polygon Fill Layer ---
             map.addLayer({
                 id: 'geoparquet-polygons',
                 type: 'fill',
                 source: 'geoparquet-data',
                 filter: ['==', '$type', 'Polygon'],
                 paint: {
-                    'fill-color': '#4F46E5',
-                    'fill-opacity': 0.3
+                    'fill-color': '#4F46E5', // primary color
+                    'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.5, 0.3]
                 }
+            });
+
+            // --- Polygon Outline Layer ---
+            map.addLayer({
+                id: 'geoparquet-polygon-outline',
+                type: 'line',
+                source: 'geoparquet-data',
+                filter: ['==', '$type', 'Polygon'],
+                paint: {
+                    'line-color': '#4F46E5', // primary color
+                    'line-width': 1
+                }
+            });
+            
+            // --- Hover and Popup Logic ---
+            const popup = new maplibregl.Popup({
+                closeButton: false,
+                closeOnClick: false,
+                maxWidth: '350px',
+                className: 'bg-white/95 backdrop-blur shadow-lg rounded-lg'
+            });
+            let hoveredFeatureId = null;
+            const interactiveLayers = ['geoparquet-points', 'geoparquet-polygons', 'geoparquet-lines'];
+
+            interactiveLayers.forEach(layerId => {
+                map.on('mousemove', layerId, (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    if (e.features.length > 0) {
+                        if (hoveredFeatureId !== null) {
+                            map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: false });
+                        }
+                        hoveredFeatureId = e.features[0].id;
+                        map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: true });
+                        
+                        const properties = Object.entries(e.features[0].properties || {})
+                            .map(([key, value]) => `<div class="mb-1"><span class="font-medium text-gray-700">${key}:</span> <span class="text-gray-900 break-all">${value}</span></div>`)
+                            .join('');
+                        
+                        popup.setLngLat(e.lngLat).setHTML(`<div class="p-2 text-sm">${properties}</div>`).addTo(map);
+                    }
+                });
+
+                map.on('mouseleave', layerId, () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hoveredFeatureId !== null) {
+                        map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: false });
+                    }
+                    hoveredFeatureId = null;
+                    popup.remove();
+                });
             });
         });
 
@@ -413,20 +381,13 @@
             if (!file) return;
 
             resetStateAndMap();
-            currentFile = file; // Store the current file reference
-            
-            // Switch view from initial upload to controls
+            currentFile = file;
             initialUploadEl.classList.add('hidden');
             controlsEl.classList.remove('hidden');
-            
-            // Update file info
             fileInfoEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-            
             logStatus(`Processing: ${file.name}`);
 
-            if (worker) {
-                worker.terminate();
-            }
+            if (worker) worker.terminate();
             
             const featureLimit = parseInt(limitInput.value, 10);
             if (isNaN(featureLimit) || featureLimit <= 0) {
@@ -436,11 +397,7 @@
 
             worker = new Worker('./worker.js', { type: 'module' });
             worker.onmessage = handleWorkerMessage;
-            worker.postMessage({ 
-                type: 'processFile', 
-                file: file,
-                limit: featureLimit
-            });
+            worker.postMessage({ type: 'processFile', file: file, limit: featureLimit });
         }
 
         function handleWorkerMessage(event) {
@@ -450,38 +407,26 @@
             switch (type) {
                 case 'status':
                     logStatus(payload.message);
-                    if (payload.batchCount) {
-                        batchCounterEl.textContent = formatNumber(payload.batchCount);
-                        batchCounterEl.title = formatNumber(payload.batchCount);
-                    }
-                    if (payload.totalProcessed) {
-                        processedCounterEl.textContent = formatNumber(payload.totalProcessed);
-                        processedCounterEl.title = formatNumber(payload.totalProcessed);
-                    }
+                    if (payload.batchCount) batchCounterEl.textContent = formatNumber(payload.batchCount);
+                    if (payload.totalProcessed) processedCounterEl.textContent = formatNumber(payload.totalProcessed);
                     break;
                 case 'features':
-                    // In both cases, we accumulate features into the main array.
                     geoJsonFeatures.push(...payload);
-                    
-                    // Only schedule a live update if the strategy is 'live'.
                     if (updateStrategy === 'live') {
                         scheduleMapUpdate();
                     } else {
-                        // In 'final' mode, we can still update the "on map" counter to show progress,
-                        // even if the map itself isn't visually updated yet.
-                        mapCounterEl.textContent = geoJsonFeatures.length;
+                        const count = geoJsonFeatures.length;
+                        mapCounterEl.textContent = formatNumber(count);
+                        mapCounterEl.title = formatNumber(count);
                     }
                     break;
                 case 'done':
                     const finalMessage = payload.limitReached 
-                        ? `✅ Stopped after hitting limit of ${payload.limit}. Total: ${processedCounterEl.textContent} features`
+                        ? `✅ Stopped after hitting limit of ${formatNumber(payload.limit)}. Total: ${processedCounterEl.textContent} features`
                         : `✅ Finished streaming. Total: ${processedCounterEl.textContent} features`;
                     logStatus(finalMessage);
 
-                    // If in 'final' mode, now is the time to update the map with ALL features at once.
-                    if (updateStrategy === 'final') {
-                        forceFinalUpdate();
-                    }
+                    if (updateStrategy === 'final') forceFinalUpdate();
                     
                     fitMapToBounds();
                     break;
@@ -493,14 +438,10 @@
 
         function resetStateAndMap() {
             geoJsonFeatures = [];
-            featureQueue = []; // Though not strictly used in 'final' mode, good to reset
             isUpdateScheduled = false;
 
             if (map.loaded() && map.getSource('geoparquet-data')) {
-                map.getSource('geoparquet-data').setData({ 
-                    type: 'FeatureCollection', 
-                    features: [] 
-                });
+                map.getSource('geoparquet-data').setData({ type: 'FeatureCollection', features: [] });
             }
 
             batchCounterEl.textContent = '0';
@@ -508,76 +449,54 @@
             mapCounterEl.textContent = '0';
         }
         
-        // This function now only makes sense for 'live' mode, but we can simplify it.
-        // Instead of a separate queue, we'll just use the main geoJsonFeatures array.
         function scheduleMapUpdate() {
             if (!isUpdateScheduled) {
                 isUpdateScheduled = true;
-                requestAnimationFrame(updateMap);
+                requestAnimationFrame(updateMapData);
             }
         }
 
-        // Renamed and simplified from updateMapFromQueue
-        function updateMap() {
-            const source = map.getSource('geoparquet-data');
-            if (source) {
-                // The key change: directly use the main array.
-                source.setData({ type: 'FeatureCollection', features: geoJsonFeatures });
+        function updateMapData() {
+            if (map.getSource('geoparquet-data')) {
+                map.getSource('geoparquet-data').setData({ type: 'FeatureCollection', features: geoJsonFeatures });
             }
             const count = geoJsonFeatures.length;
-            mapCounterEl.textContent = count.toLocaleString();
-            mapCounterEl.title = count.toLocaleString(); // For tooltip on hover
-            isUpdateScheduled = false; // Allow the next frame to be scheduled
+            mapCounterEl.textContent = formatNumber(count);
+            mapCounterEl.title = formatNumber(count);
+            isUpdateScheduled = false;
         }
 
-        // Format numbers with commas
-        function formatNumber(num) {
-            return num.toLocaleString();
-        }
-
-        // This function is now perfect for the 'final' update mode.
         function forceFinalUpdate() {
             isUpdateScheduled = false; // Cancel any pending animation frame
-            updateMap(); // Call the update logic directly
+            updateMapData();
         }
+
+        function formatNumber(num) { return num.toLocaleString(); }
         
         function fitMapToBounds() {
             if (geoJsonFeatures.length === 0 || !map.loaded()) return;
 
             const bounds = new maplibregl.LngLatBounds();
-            
-            // A more robust way to calculate bounds for different geometry types
             geoJsonFeatures.forEach(feature => {
                 const type = feature.geometry?.type;
                 const coords = feature.geometry?.coordinates;
                 if (!coords) return;
 
-                if (type === 'Point') {
-                    bounds.extend(coords);
-                } else if (type === 'LineString' || type === 'MultiPoint') {
-                    coords.forEach(c => bounds.extend(c));
-                } else if (type === 'Polygon' || type === 'MultiLineString') {
-                    coords.forEach(ring => ring.forEach(c => bounds.extend(c)));
-                } else if (type === 'MultiPolygon') {
-                     coords.forEach(poly => poly.forEach(ring => ring.forEach(c => bounds.extend(c))));
-                }
+                if (type === 'Point') bounds.extend(coords);
+                else if (type === 'LineString' || type === 'MultiPoint') coords.forEach(c => bounds.extend(c));
+                else if (type === 'Polygon' || type === 'MultiLineString') coords.forEach(ring => ring.forEach(c => bounds.extend(c)));
+                else if (type === 'MultiPolygon') coords.forEach(poly => poly.forEach(ring => ring.forEach(c => bounds.extend(c))));
             });
 
-            if (!bounds.isEmpty()) {
-                 map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
-            }
+            if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
         }
         
         function logStatus(message, isError = false) {
             statusEl.textContent = message;
-            if (isError) {
-                statusEl.classList.add('bg-red-50', 'text-red-700', 'border-l-4', 'border-red-500');
-                statusEl.classList.remove('bg-gray-50', 'text-gray-700');
-                console.error(message);
-            } else {
-                statusEl.classList.remove('bg-red-50', 'text-red-700', 'border-l-4', 'border-red-500');
-                statusEl.classList.add('bg-gray-50', 'text-gray-700');
-            }
+            statusEl.className = isError 
+                ? 'text-sm bg-red-50 text-red-800 rounded-lg p-3 font-mono whitespace-pre-wrap border border-red-200'
+                : 'text-sm bg-gray-50 text-gray-700 rounded-lg p-3 font-mono whitespace-pre-wrap border border-gray-100';
+            if (isError) console.error(message);
         }
     </script>
 </body>

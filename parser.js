@@ -41,7 +41,26 @@ export async function* processParquetStream(file, limit = Infinity) {
                 break; // Exit this inner for-loop over rows
             }
 
-            const row = rowObject.toJSON();
+            // First convert to a plain object using toJSON
+            const jsonData = rowObject.toJSON();
+            const row = {};
+            
+            // Handle each field, paying special attention to binary/geometry data
+            for (const [key, value] of Object.entries(jsonData)) {
+                // Skip null values
+                if (value === null) {
+                    row[key] = null;
+                    continue;
+                }
+                
+                // Handle binary/geometry data
+                if (value instanceof Uint8Array) {
+                    row[key] = new Uint8Array(value);
+                } else {
+                    // For all other types, use the value as is
+                    row[key] = value;
+                }
+            }
             let geometry = null;
             
             // Priority 1: Use lon/lat columns if they exist and are valid
@@ -50,21 +69,32 @@ export async function* processParquetStream(file, limit = Infinity) {
             } 
             // Priority 2: Try to parse WKB geometry
             else if (row.geometry instanceof Uint8Array) {
-                geometry = parseWKB(row.geometry.buffer.slice(
-                    row.geometry.byteOffset, 
+                const buffer = row.geometry.buffer.slice(
+                    row.geometry.byteOffset,
                     row.geometry.byteOffset + row.geometry.byteLength
-                ));
+                );
+                geometry = parseWKB(buffer);
+            }
+            // Try geometry_bbox if main geometry fails
+            else if (!geometry && row.geometry_bbox instanceof Uint8Array) {
+                const buffer = row.geometry_bbox.buffer.slice(
+                    row.geometry_bbox.byteOffset,
+                    row.geometry_bbox.byteOffset + row.geometry_bbox.byteLength
+                );
+                geometry = parseWKB(buffer);
             }
             
             if (geometry) {
                 // Create a clean properties object
                 const properties = { ...row };
                 delete properties.geometry;
+                delete properties.geometry_bbox;  // Also remove the bbox geometry
                 delete properties.lon;
                 delete properties.lat;
                 
                 batchFeatures.push({
                     type: 'Feature',
+                    id: totalProcessed, // Add a unique ID for each feature
                     geometry: geometry,
                     properties: sanitizeProperties(properties) // Sanitize for BigInts
                 });
@@ -104,16 +134,51 @@ function parseWKB(wkbBuffer) {
         offset += 4;
         
         const actualGeomType = geomType & 0xFF; // Handle different WKB variants
+
+        // Helper function to read a point
+        function readPoint() {
+            const x = view.getFloat64(offset, littleEndian);
+            offset += 8;
+            const y = view.getFloat64(offset, littleEndian);
+            offset += 8;
+            return [x, y];
+        }
+
+        // Helper function to read a ring (for polygons)
+        function readLinearRing() {
+            const numPoints = view.getUint32(offset, littleEndian);
+            offset += 4;
+            const points = [];
+            for (let i = 0; i < numPoints; i++) {
+                points.push(readPoint());
+            }
+            return points;
+        }
         
         switch (actualGeomType) {
             case 1: // Point
-                const x = view.getFloat64(offset, littleEndian);
-                offset += 8;
-                const y = view.getFloat64(offset, littleEndian);
-                return { type: 'Point', coordinates: [x, y] };
-            // Add other geometry types (LineString, Polygon) as needed
+                return { type: 'Point', coordinates: readPoint() };
+            
+            case 2: // LineString
+                const numPoints = view.getUint32(offset, littleEndian);
+                offset += 4;
+                const points = [];
+                for (let i = 0; i < numPoints; i++) {
+                    points.push(readPoint());
+                }
+                return { type: 'LineString', coordinates: points };
+            
+            case 3: // Polygon
+                const numRings = view.getUint32(offset, littleEndian);
+                offset += 4;
+                const rings = [];
+                for (let i = 0; i < numRings; i++) {
+                    rings.push(readLinearRing());
+                }
+                return { type: 'Polygon', coordinates: rings };
+
             default:
-                // console.warn(`Unsupported WKB geometry type: ${actualGeomType}`);
+                console.warn(`Unsupported WKB geometry type: ${actualGeomType}`);
                 return null;
         }
     } catch (error) {
