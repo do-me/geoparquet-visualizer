@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🗺️</text></svg>"></link>
+    <title>GeoParquet Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5',
+                        secondary: '#10B981',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+</head>
+<body class="h-screen w-screen overflow-hidden bg-gray-50">
+    <!-- Main Layout -->
+    <div class="relative h-full w-full">
+        <!-- Map Container (Full Screen) -->
+        <div id="map" class="absolute inset-0 w-full h-full"></div>
+
+        <!-- Toggle Sidebar Button (only visible when sidebar is closed) -->
+        <button id="toggle-sidebar-outer" class="fixed top-4 left-4 z-20 p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-opacity duration-300">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+            </svg>
+        </button>
+
+        <!-- Sidebar -->
+        <div id="sidebar" class="fixed top-0 left-0 z-10 w-full md:w-[420px] lg:w-[480px] h-full transform transition-transform duration-300">
+            <!-- Sidebar Content -->
+            <div class="h-full bg-white/95 backdrop-blur shadow-xl overflow-y-auto">
+                <!-- Header -->
+                <div class="px-6 py-6 border-b border-gray-200 bg-white">
+                    <div class="flex items-center justify-between mb-2">
+                        <button id="toggle-sidebar-inner" class="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <h1 class="text-2xl font-bold text-gray-900">GeoParquet Visualizer</h1>
+                    <p class="text-sm text-gray-600 mt-1">Visualize spatial data from GeoParquet and Parquet files. Primarily uses lat lon columns or WKB geom as fallback. <br><a href="https://github.com/do-me/geoparquet-visualizer/" target="_blank">github.com/do-me/geoparquet-visualizer</a></p>
+                </div>
+
+                <!-- Settings (always visible) -->
+                <div class="p-6 border-b border-gray-200 bg-gray-50/50">
+                    <h3 class="text-base font-semibold text-gray-900 mb-4">Settings</h3>
+                    <div class="space-y-6">
+                        <!-- Feature Limit -->
+                        <div class="relative">
+                            <label for="limit-input" class="block text-sm font-medium text-gray-900 mb-1">
+                                Feature Limit
+                                <span class="ml-1 text-xs text-gray-500">(max points to load)</span>
+                            </label>
+                            <div class="relative mt-1 rounded-md shadow-sm">
+                                <input type="number" 
+                                       id="limit-input" 
+                                       value="100000" 
+                                       min="1"
+                                       class="block w-full rounded-lg border-gray-200 px-4 pr-16
+                                              text-gray-900 placeholder:text-gray-400
+                                              focus:border-primary focus:ring-primary
+                                              sm:text-sm sm:leading-6
+                                              transition-colors duration-200">
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
+                                    <span class="text-gray-400 sm:text-sm">points</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Update Strategy -->
+                        <div class="relative">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">
+                                Update Strategy
+                                <span class="ml-1 text-xs text-gray-500">(how to refresh the map)</span>
+                            </label>
+                            <div class="mt-2 space-y-2">
+                                <div class="flex items-center">
+                                    <input type="radio" 
+                                           id="strategy-final" 
+                                           name="update-strategy" 
+                                           value="final" 
+                                           checked
+                                           class="h-4 w-4 border-gray-300 text-primary focus:ring-primary">
+                                    <label for="strategy-final" class="ml-2 block text-sm text-gray-900">
+                                        Only when finished
+                                        <span class="text-xs text-gray-500 block">Better performance with large files</span>
+                                    </label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="radio" 
+                                           id="strategy-live" 
+                                           name="update-strategy" 
+                                           value="live"
+                                           class="h-4 w-4 border-gray-300 text-primary focus:ring-primary">
+                                    <label for="strategy-live" class="ml-2 block text-sm text-gray-900">
+                                        Live updates
+                                        <span class="text-xs text-gray-500 block">See changes immediately (for smaller files)</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <p class="mt-1.5 text-xs text-gray-500">
+                                Choose "Live" for immediate updates or "Only when finished" for better performance with large files
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Initial Upload State (shown when no file is loaded) -->
+                <div id="initial-upload" class="p-6">
+                    <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary transition-colors duration-200 cursor-pointer bg-white/50 backdrop-blur">
+                        <div class="space-y-4">
+                            <div class="inline-flex p-3 rounded-full bg-primary/10">
+                                <svg class="w-8 h-8 text-primary" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4-4m4-4h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                            <div>
+                                <label for="file-input" class="relative cursor-pointer rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
+                                    <span class="text-base">Upload a file</span>
+                                    <input id="file-input" type="file" class="sr-only" accept=".parquet,.geoparquet">
+                                </label>
+                                <p class="text-sm text-gray-500 mt-1">or drag and drop</p>
+                                <p class="text-xs text-gray-400 mt-2">Supported: .parquet, .geoparquet</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Controls (initially hidden) -->
+                <div id="controls" class="p-6 space-y-6 hidden">
+                    <!-- File Info with Controls -->
+                    <div class="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="flex-shrink-0">
+                                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <h3 class="text-sm font-medium text-gray-900" id="file-info">No file selected</h3>
+                            </div>
+                            <div class="flex gap-1">
+                                <button id="reload-file" 
+                                        class="p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" 
+                                        title="Reload file with current settings">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                                <button id="remove-file" 
+                                        class="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" 
+                                        title="Remove file">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Statistics -->
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="bg-white rounded-lg px-4 py-5 shadow-sm border border-gray-100">
+                            <dt class="text-sm font-medium text-gray-500">Batches</dt>
+                            <dd class="mt-1.5 text-[1.1rem] leading-tight font-semibold text-primary break-all" id="batch-counter">0</dd>
+                        </div>
+                        <div class="bg-white rounded-lg px-4 py-5 shadow-sm border border-gray-100">
+                            <dt class="text-sm font-medium text-gray-500">Processed</dt>
+                            <dd class="mt-1.5 text-[1.1rem] leading-tight font-semibold text-primary break-all" id="processed-counter">0</dd>
+                        </div>
+                        <div class="bg-white rounded-lg px-4 py-5 shadow-sm border border-gray-100">
+                            <dt class="text-sm font-medium text-gray-500">On Map</dt>
+                            <dd class="mt-1.5 text-[1.1rem] leading-tight font-semibold text-primary break-all" id="map-counter">0</dd>
+                        </div>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+                        <h3 class="text-sm font-medium text-gray-900 mb-3 flex items-center space-x-2">
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Status</span>
+                        </h3>
+                        <pre id="status" class="text-sm bg-gray-50 rounded-lg p-3 font-mono whitespace-pre-wrap text-gray-600 border border-gray-100">Waiting for file...</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.js"></script>
+    <script type="module">
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const limitInput = document.getElementById('limit-input');
+        const updateStrategyInputs = document.querySelectorAll('input[name="update-strategy"]');
+        const statusEl = document.getElementById('status');
+        const batchCounterEl = document.getElementById('batch-counter');
+        const processedCounterEl = document.getElementById('processed-counter');
+        const mapCounterEl = document.getElementById('map-counter');
+        
+        // Create and add popup for feature tooltips
+        const popup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            maxWidth: '300px',
+            className: 'bg-white/95 backdrop-blur shadow-lg rounded-lg'
+        });
+        const fileInfoEl = document.getElementById('file-info');
+        const initialUploadEl = document.getElementById('initial-upload');
+        const controlsEl = document.getElementById('controls');
+        const sidebarEl = document.getElementById('sidebar');
+        const toggleSidebarOuterBtn = document.getElementById('toggle-sidebar-outer');
+        const toggleSidebarInnerBtn = document.getElementById('toggle-sidebar-inner');
+        const reloadFileBtn = document.getElementById('reload-file');
+        const removeFileBtn = document.getElementById('remove-file');
+
+        // Sidebar Toggle
+        let isSidebarOpen = true; // Start with sidebar open
+        
+        // Initialize outer button state
+        toggleSidebarOuterBtn.classList.add('opacity-0', 'pointer-events-none');
+        
+        function toggleSidebar() {
+            isSidebarOpen = !isSidebarOpen;
+            sidebarEl.classList.toggle('-translate-x-full', !isSidebarOpen);
+            toggleSidebarOuterBtn.classList.toggle('opacity-0', isSidebarOpen);
+            toggleSidebarOuterBtn.classList.toggle('pointer-events-none', isSidebarOpen);
+        }
+        
+        // Add click handlers to both buttons
+        toggleSidebarOuterBtn.addEventListener('click', toggleSidebar);
+        toggleSidebarInnerBtn.addEventListener('click', toggleSidebar);
+
+        let worker;
+        let geoJsonFeatures = [];
+        let featureQueue = [];
+        let isUpdateScheduled = false;
+        let currentFile = null; // Store the current file reference
+
+        // File management controls
+        reloadFileBtn.addEventListener('click', () => {
+            if (currentFile) {
+                handleFile(currentFile);
+            }
+        });
+
+        removeFileBtn.addEventListener('click', () => {
+            currentFile = null;
+            resetStateAndMap();
+            controlsEl.classList.add('hidden');
+            initialUploadEl.classList.remove('hidden');
+            fileInput.value = ''; // Clear the file input
+            logStatus("File removed. Ready for new file...");
+        });
+
+        // Setup drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        dropZone.addEventListener('drop', handleDrop, false);
+        // Add click handler for the drop zone
+        dropZone.addEventListener('click', () => fileInput.click(), false);
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function highlight(e) {
+            dropZone.classList.add('border-primary');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('border-primary');
+        }
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            handleFile(file);
+        }
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://tiles.openfreemap.org/styles/liberty', // thanks a lot OpenFreeMap, amazing service!! :)
+            center: [11.5, 48.1],
+            zoom: 5
+        });
+
+        // Add zoom and rotation controls
+        map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+
+        map.on('load', () => {
+            logStatus("Map ready. Waiting for file...");
+            map.addSource('geoparquet-data', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+            
+            // Add hover state for points
+            const pointLayer = {
+                id: 'geoparquet-points',
+                type: 'circle',
+                source: 'geoparquet-data',
+                filter: ['==', '$type', 'Point'],
+                paint: {
+                    'circle-radius': 4,
+                    'circle-color': '#ff0000', // plain red for higher contrast to background map
+                    'circle-opacity': 0.7,
+                    'circle-stroke-width': [
+                        'case',
+                        ['boolean', ['feature-state', 'hover'], false],
+                        2,
+                        0
+                    ],
+                    'circle-stroke-color': '#ffffff'
+                }
+            };
+            map.addLayer(pointLayer);
+            
+            // Handle point hover events
+            let hoveredFeatureId = null;
+            
+            map.on('mousemove', 'geoparquet-points', (e) => {
+                if (e.features.length === 0) return;
+                
+                if (hoveredFeatureId !== null) {
+                    map.setFeatureState(
+                        { source: 'geoparquet-data', id: hoveredFeatureId },
+                        { hover: false }
+                    );
+                }
+                
+                hoveredFeatureId = e.features[0].id;
+                map.setFeatureState(
+                    { source: 'geoparquet-data', id: hoveredFeatureId },
+                    { hover: true }
+                );
+                
+                // Create tooltip content
+                const feature = e.features[0];
+                const properties = Object.entries(feature.properties || {})
+                    .map(([key, value]) => `<div class="mb-1">
+                        <span class="font-medium text-gray-700">${key}:</span> 
+                        <span class="text-gray-900">${value}</span>
+                    </div>`)
+                    .join('');
+                
+                popup.setLngLat(e.lngLat)
+                    .setHTML(`<div class="p-2 text-sm">${properties}</div>`)
+                    .addTo(map);
+            });
+            
+            map.on('mouseleave', 'geoparquet-points', () => {
+                if (hoveredFeatureId !== null) {
+                    map.setFeatureState(
+                        { source: 'geoparquet-data', id: hoveredFeatureId },
+                        { hover: false }
+                    );
+                }
+                hoveredFeatureId = null;
+                popup.remove();
+            });
+            map.addLayer({
+                id: 'geoparquet-lines',
+                type: 'line',
+                source: 'geoparquet-data',
+                filter: ['==', '$type', 'LineString'],
+                paint: {
+                    'line-color': '#10B981',
+                    'line-width': 2
+                }
+            });
+            map.addLayer({
+                id: 'geoparquet-polygons',
+                type: 'fill',
+                source: 'geoparquet-data',
+                filter: ['==', '$type', 'Polygon'],
+                paint: {
+                    'fill-color': '#4F46E5',
+                    'fill-opacity': 0.3
+                }
+            });
+        });
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (!file) return;
+
+            resetStateAndMap();
+            currentFile = file; // Store the current file reference
+            
+            // Switch view from initial upload to controls
+            initialUploadEl.classList.add('hidden');
+            controlsEl.classList.remove('hidden');
+            
+            // Update file info
+            fileInfoEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+            
+            logStatus(`Processing: ${file.name}`);
+
+            if (worker) {
+                worker.terminate();
+            }
+            
+            const featureLimit = parseInt(limitInput.value, 10);
+            if (isNaN(featureLimit) || featureLimit <= 0) {
+                logStatus("Error: Invalid feature limit.", true);
+                return;
+            }
+
+            worker = new Worker('./worker.js', { type: 'module' });
+            worker.onmessage = handleWorkerMessage;
+            worker.postMessage({ 
+                type: 'processFile', 
+                file: file,
+                limit: featureLimit
+            });
+        }
+
+        function handleWorkerMessage(event) {
+            const { type, payload } = event.data;
+            const updateStrategy = document.querySelector('input[name="update-strategy"]:checked').value;
+
+            switch (type) {
+                case 'status':
+                    logStatus(payload.message);
+                    if (payload.batchCount) {
+                        batchCounterEl.textContent = formatNumber(payload.batchCount);
+                        batchCounterEl.title = formatNumber(payload.batchCount);
+                    }
+                    if (payload.totalProcessed) {
+                        processedCounterEl.textContent = formatNumber(payload.totalProcessed);
+                        processedCounterEl.title = formatNumber(payload.totalProcessed);
+                    }
+                    break;
+                case 'features':
+                    // In both cases, we accumulate features into the main array.
+                    geoJsonFeatures.push(...payload);
+                    
+                    // Only schedule a live update if the strategy is 'live'.
+                    if (updateStrategy === 'live') {
+                        scheduleMapUpdate();
+                    } else {
+                        // In 'final' mode, we can still update the "on map" counter to show progress,
+                        // even if the map itself isn't visually updated yet.
+                        mapCounterEl.textContent = geoJsonFeatures.length;
+                    }
+                    break;
+                case 'done':
+                    const finalMessage = payload.limitReached 
+                        ? `✅ Stopped after hitting limit of ${payload.limit}. Total: ${processedCounterEl.textContent} features`
+                        : `✅ Finished streaming. Total: ${processedCounterEl.textContent} features`;
+                    logStatus(finalMessage);
+
+                    // If in 'final' mode, now is the time to update the map with ALL features at once.
+                    if (updateStrategy === 'final') {
+                        forceFinalUpdate();
+                    }
+                    
+                    fitMapToBounds();
+                    break;
+                case 'error':
+                    logStatus(`❌ Worker Error: ${payload.message}`, true);
+                    break;
+            }
+        }
+
+        function resetStateAndMap() {
+            geoJsonFeatures = [];
+            featureQueue = []; // Though not strictly used in 'final' mode, good to reset
+            isUpdateScheduled = false;
+
+            if (map.loaded() && map.getSource('geoparquet-data')) {
+                map.getSource('geoparquet-data').setData({ 
+                    type: 'FeatureCollection', 
+                    features: [] 
+                });
+            }
+
+            batchCounterEl.textContent = '0';
+            processedCounterEl.textContent = '0';
+            mapCounterEl.textContent = '0';
+        }
+        
+        // This function now only makes sense for 'live' mode, but we can simplify it.
+        // Instead of a separate queue, we'll just use the main geoJsonFeatures array.
+        function scheduleMapUpdate() {
+            if (!isUpdateScheduled) {
+                isUpdateScheduled = true;
+                requestAnimationFrame(updateMap);
+            }
+        }
+
+        // Renamed and simplified from updateMapFromQueue
+        function updateMap() {
+            const source = map.getSource('geoparquet-data');
+            if (source) {
+                // The key change: directly use the main array.
+                source.setData({ type: 'FeatureCollection', features: geoJsonFeatures });
+            }
+            const count = geoJsonFeatures.length;
+            mapCounterEl.textContent = count.toLocaleString();
+            mapCounterEl.title = count.toLocaleString(); // For tooltip on hover
+            isUpdateScheduled = false; // Allow the next frame to be scheduled
+        }
+
+        // Format numbers with commas
+        function formatNumber(num) {
+            return num.toLocaleString();
+        }
+
+        // This function is now perfect for the 'final' update mode.
+        function forceFinalUpdate() {
+            isUpdateScheduled = false; // Cancel any pending animation frame
+            updateMap(); // Call the update logic directly
+        }
+        
+        function fitMapToBounds() {
+            if (geoJsonFeatures.length === 0 || !map.loaded()) return;
+
+            const bounds = new maplibregl.LngLatBounds();
+            
+            // A more robust way to calculate bounds for different geometry types
+            geoJsonFeatures.forEach(feature => {
+                const type = feature.geometry?.type;
+                const coords = feature.geometry?.coordinates;
+                if (!coords) return;
+
+                if (type === 'Point') {
+                    bounds.extend(coords);
+                } else if (type === 'LineString' || type === 'MultiPoint') {
+                    coords.forEach(c => bounds.extend(c));
+                } else if (type === 'Polygon' || type === 'MultiLineString') {
+                    coords.forEach(ring => ring.forEach(c => bounds.extend(c)));
+                } else if (type === 'MultiPolygon') {
+                     coords.forEach(poly => poly.forEach(ring => ring.forEach(c => bounds.extend(c))));
+                }
+            });
+
+            if (!bounds.isEmpty()) {
+                 map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
+            }
+        }
+        
+        function logStatus(message, isError = false) {
+            statusEl.textContent = message;
+            if (isError) {
+                statusEl.classList.add('bg-red-50', 'text-red-700', 'border-l-4', 'border-red-500');
+                statusEl.classList.remove('bg-gray-50', 'text-gray-700');
+                console.error(message);
+            } else {
+                statusEl.classList.remove('bg-red-50', 'text-red-700', 'border-l-4', 'border-red-500');
+                statusEl.classList.add('bg-gray-50', 'text-gray-700');
+            }
+        }
+    </script>
+</body>
+</html>
