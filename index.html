@@ -358,6 +358,7 @@
                         }
                         
                         const properties = Object.entries(e.features[0].properties || {})
+                            .filter(([key]) => !key.toLowerCase().includes('geometry')) // Filter out geometry-related columns
                             .map(([key, value]) => `<div class="mb-1"><span class="font-medium text-gray-700">${key}:</span> <span class="text-gray-900 break-all">${value}</span></div>`)
                             .join('');
                         

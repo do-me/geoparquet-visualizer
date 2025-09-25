@@ -81,8 +81,6 @@ export async function* processParquetStream(file, limit = Infinity) {
                 const properties = { ...row };
                 delete properties.geometry;
                 delete properties.geometry_bbox;  // Also remove the bbox geometry
-                delete properties.lon;
-                delete properties.lat;
                 
                 batchFeatures.push({
                     type: 'Feature',
