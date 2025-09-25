@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🗺️</text></svg>"></link>
     <title>GeoParquet Visualizer</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -120,7 +120,8 @@
                         <div class="space-y-4">
                             <div class="inline-flex p-3 rounded-full bg-primary/10">
                                 <svg class="w-8 h-8 text-primary" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4-4m4-4h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path d="M28 8H12a4 4
+                                    0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4-4m4-4h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                 </svg>
                             </div>
                             <div>
@@ -314,7 +315,12 @@
                 id: 'geoparquet-polygons',
                 type: 'fill',
                 source: 'geoparquet-data',
-                filter: ['==', '$type', 'Polygon'],
+                // FIX 1: Use a valid filter for both Polygon and MultiPolygon
+                filter: [
+                    'any',
+                    ['==', ['get', 'type', ['geometry']], 'Polygon'],
+                    ['==', ['get', 'type', ['geometry']], 'MultiPolygon']
+                ],
                 paint: {
                     'fill-color': '#4F46E5', // primary color
                     'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.5, 0.3]
@@ -326,7 +332,12 @@
                 id: 'geoparquet-polygon-outline',
                 type: 'line',
                 source: 'geoparquet-data',
-                filter: ['==', '$type', 'Polygon'],
+                 // FIX 1: Use a valid filter for both Polygon and MultiPolygon
+                filter: [
+                    'any',
+                    ['==', ['get', 'type', ['geometry']], 'Polygon'],
+                    ['==', ['get', 'type', ['geometry']], 'MultiPolygon']
+                ],
                 paint: {
                     'line-color': '#4F46E5', // primary color
                     'line-width': 1
@@ -347,11 +358,14 @@
                 map.on('mousemove', layerId, (e) => {
                     map.getCanvas().style.cursor = 'pointer';
                     if (e.features.length > 0) {
-                        if (hoveredFeatureId !== null) {
-                            map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: false });
+                        // FIX 2: Add a check to ensure the feature has an ID before setting state
+                        if (e.features[0].id !== undefined) {
+                            if (hoveredFeatureId !== null) {
+                                map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: false });
+                            }
+                            hoveredFeatureId = e.features[0].id;
+                            map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: true });
                         }
-                        hoveredFeatureId = e.features[0].id;
-                        map.setFeatureState({ source: 'geoparquet-data', id: hoveredFeatureId }, { hover: true });
                         
                         const properties = Object.entries(e.features[0].properties || {})
                             .map(([key, value]) => `<div class="mb-1"><span class="font-medium text-gray-700">${key}:</span> <span class="text-gray-900 break-all">${value}</span></div>`)

@@ -155,27 +155,44 @@ function parseWKB(wkbBuffer) {
             return points;
         }
         
+        // Helper to read all rings for a single polygon
+        function readPolygonRings() {
+             const numRings = view.getUint32(offset, littleEndian);
+             offset += 4;
+             const rings = [];
+             for (let i = 0; i < numRings; i++) {
+                 rings.push(readLinearRing());
+             }
+             return rings;
+        }
+        
         switch (actualGeomType) {
             case 1: // Point
                 return { type: 'Point', coordinates: readPoint() };
             
             case 2: // LineString
-                const numPoints = view.getUint32(offset, littleEndian);
+                const numLinePoints = view.getUint32(offset, littleEndian);
                 offset += 4;
-                const points = [];
-                for (let i = 0; i < numPoints; i++) {
-                    points.push(readPoint());
+                const linePoints = [];
+                for (let i = 0; i < numLinePoints; i++) {
+                    linePoints.push(readPoint());
                 }
-                return { type: 'LineString', coordinates: points };
+                return { type: 'LineString', coordinates: linePoints };
             
             case 3: // Polygon
-                const numRings = view.getUint32(offset, littleEndian);
+                return { type: 'Polygon', coordinates: readPolygonRings() };
+
+            case 6: // MultiPolygon
+                const numPolygons = view.getUint32(offset, littleEndian);
                 offset += 4;
-                const rings = [];
-                for (let i = 0; i < numRings; i++) {
-                    rings.push(readLinearRing());
+                const polygons = [];
+                for (let i = 0; i < numPolygons; i++) {
+                    // Each polygon in a multipolygon has its own WKB header
+                    offset++; // Skip byte order
+                    offset += 4; // Skip geometry type
+                    polygons.push(readPolygonRings());
                 }
-                return { type: 'Polygon', coordinates: rings };
+                return { type: 'MultiPolygon', coordinates: polygons };
 
             default:
                 console.warn(`Unsupported WKB geometry type: ${actualGeomType}`);
