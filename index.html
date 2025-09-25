@@ -27,7 +27,6 @@
         .dragging {
             opacity: 0.5;
             background: #eef2ff;
-            /* A light primary color */
         }
 
         .drag-over {
@@ -60,19 +59,19 @@
             height: 28px;
             padding: 0;
             border: none;
-            border-radius: 0.375rem; /* rounded-md */
+            border-radius: 0.375rem;
             cursor: pointer;
         }
         input[type="color"]::-webkit-color-swatch-wrapper {
             padding: 0;
         }
         input[type="color"]::-webkit-color-swatch {
-            border-radius: 0.375rem; /* rounded-md */
-            border: 1px solid #e5e7eb; /* gray-200 */
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
         }
         input[type="color"]::-moz-color-swatch {
-             border-radius: 0.375rem; /* rounded-md */
-             border: 1px solid #e5e7eb; /* gray-200 */
+             border-radius: 0.375rem;
+             border: 1px solid #e5e7eb;
         }
     </style>
 </head>
@@ -202,62 +201,65 @@
 
     <!-- Template for a single layer card -->
     <template id="layer-card-template">
-        <div class="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg p-4 cursor-grab" draggable="true">
-            <!-- Main Info -->
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3 overflow-hidden">
-                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <h3 class="file-info text-sm font-medium text-gray-900 truncate" title="Filename">No file selected
-                    </h3>
-                </div>
-                <div class="flex gap-1 flex-shrink-0">
-                    <button
-                        class="toggle-visibility p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg"
-                        title="Toggle visibility">
-                        <!-- Eye icon will be inserted here -->
-                    </button>
-                    <button class="reload-file p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg"
-                        title="Reload file with current settings">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg p-4">
+            <!-- Draggable Handle Area -->
+            <div class="draggable-handle cursor-grab">
+                <!-- Main Info -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <svg class="w-5 h-5 text-primary flex-shrink-0" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                         </svg>
-                    </button>
-                    <button class="remove-file p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg"
-                        title="Remove file">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                    </button>
+                        <h3 class="file-info text-sm font-medium text-gray-900 truncate" title="Filename">No file selected
+                        </h3>
+                    </div>
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button
+                            class="toggle-visibility p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg"
+                            title="Toggle visibility">
+                            <!-- Eye icon will be inserted here -->
+                        </button>
+                        <button class="reload-file p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg"
+                            title="Reload file with current settings">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                        <button class="remove-file p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                            title="Remove file">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <!-- Statistics -->
-            <div class="grid grid-cols-3 gap-2 mt-3">
-                <div class="bg-white/70 rounded px-2.5 py-2">
-                    <dt class="text-xs font-medium text-gray-500">Processed</dt>
-                    <dd class="processed-counter mt-1 text-sm font-semibold text-primary">0</dd>
+                <!-- Statistics -->
+                <div class="grid grid-cols-3 gap-2 mt-3">
+                    <div class="bg-white/70 rounded px-2.5 py-2">
+                        <dt class="text-xs font-medium text-gray-500">Processed</dt>
+                        <dd class="processed-counter mt-1 text-sm font-semibold text-primary">0</dd>
+                    </div>
+                    <div class="bg-white/70 rounded px-2.5 py-2">
+                        <dt class="text-xs font-medium text-gray-500">On Map</dt>
+                        <dd class="map-counter mt-1 text-sm font-semibold text-primary">0</dd>
+                    </div>
+                    <div class="bg-white/70 rounded px-2.5 py-2">
+                        <dt class="text-xs font-medium text-gray-500">Batches</dt>
+                        <dd class="batch-counter mt-1 text-sm font-semibold text-primary">0</dd>
+                    </div>
                 </div>
-                <div class="bg-white/70 rounded px-2.5 py-2">
-                    <dt class="text-xs font-medium text-gray-500">On Map</dt>
-                    <dd class="map-counter mt-1 text-sm font-semibold text-primary">0</dd>
+                 <!-- Status -->
+                <div class="mt-3">
+                    <pre
+                        class="status text-xs bg-gray-50 rounded p-2 font-mono whitespace-pre-wrap text-gray-600 border border-gray-100">Waiting...</pre>
                 </div>
-                <div class="bg-white/70 rounded px-2.5 py-2">
-                    <dt class="text-xs font-medium text-gray-500">Batches</dt>
-                    <dd class="batch-counter mt-1 text-sm font-semibold text-primary">0</dd>
-                </div>
-            </div>
-            <!-- Status -->
-            <div class="mt-3">
-                <pre
-                    class="status text-xs bg-gray-50 rounded p-2 font-mono whitespace-pre-wrap text-gray-600 border border-gray-100">Waiting...</pre>
             </div>
             <!-- Style Controls -->
-            <details class="mt-3">
+            <details class="mt-3" draggable="false"> <!-- FIX: Prevent this section from being draggable -->
                 <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-primary">
                     <span class="flex items-center gap-1">
                         <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -266,22 +268,38 @@
                         Layer Styling
                     </span>
                 </summary>
-                <div class="mt-3 pl-5 grid grid-cols-2 gap-x-4 gap-y-3">
-                    <div class="flex items-center justify-between">
+                <div class="mt-3 pl-5 grid grid-cols-1 gap-y-3">
+                    <!-- Point Styles -->
+                    <div class="style-control hidden" data-geom-type="Point">
                         <label class="text-sm text-gray-800">Points</label>
-                        <input type="color" class="color-picker" data-style-type="points" value="#ff0000">
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="color" class="style-input" data-style-type="pointColor" value="#ff0000">
+                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input" data-style-type="pointOpacity" value="0.7">
+                        </div>
                     </div>
-                    <div class="flex items-center justify-between">
+                    <!-- Line Styles -->
+                    <div class="style-control hidden" data-geom-type="LineString">
                         <label class="text-sm text-gray-800">Lines</label>
-                        <input type="color" class="color-picker" data-style-type="lines" value="#10B981">
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="color" class="style-input" data-style-type="lineColor" value="#10B981">
+                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input" data-style-type="lineOpacity" value="1">
+                        </div>
                     </div>
-                    <div class="flex items-center justify-between">
+                    <!-- Polygon Fill Styles -->
+                    <div class="style-control hidden" data-geom-type="Polygon">
                         <label class="text-sm text-gray-800">Polygon Fill</label>
-                        <input type="color" class="color-picker" data-style-type="polygonFill" value="#4F46E580"> <!-- Note 80 for 50% opacity -->
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="color" class="style-input" data-style-type="polygonFillColor" value="#4F46E5">
+                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input" data-style-type="polygonFillOpacity" value="0.5">
+                        </div>
                     </div>
-                    <div class="flex items-center justify-between">
-                        <label class="text-sm text-gray-800">Polygon Outline</label>
-                        <input type="color" class="color-picker" data-style-type="polygonOutline" value="#4F46E5">
+                    <!-- Polygon Outline Styles -->
+                    <div class="style-control hidden" data-geom-type="Polygon">
+                         <label class="text-sm text-gray-800">Polygon Outline</label>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="color" class="style-input" data-style-type="polygonOutlineColor" value="#4F46E5">
+                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input" data-style-type="polygonOutlineOpacity" value="1">
+                        </div>
                     </div>
                 </div>
             </details>
@@ -309,6 +327,14 @@
         let layerOrder = []; // Array of layer IDs to manage rendering order
         let nextLayerId = 0;
 
+        // --- Helper Function ---
+        function hexToRgba(hex, alpha = 1) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        
         // --- Sidebar Toggle ---
         let isSidebarOpen = true;
         toggleSidebarOuterBtn.classList.add('opacity-0', 'pointer-events-none');
@@ -357,6 +383,9 @@
             const card = layerCardTemplate.content.cloneNode(true).firstElementChild;
             card.dataset.id = layerId;
 
+            const draggableHandle = card.querySelector('.draggable-handle');
+            draggableHandle.draggable = true;
+
             const fileInfoEl = card.querySelector('.file-info');
             fileInfoEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
             fileInfoEl.title = file.name;
@@ -369,11 +398,12 @@
                 geoJsonFeatures: [],
                 isUpdateScheduled: false,
                 isVisible: true,
-                colors: { // NEW: Store colors in state
-                    points: '#ff0000',
-                    lines: '#10B981',
-                    polygonFill: '#4f46e580', // 50% opacity
-                    polygonOutline: '#4F46E5',
+                detectedGeomTypes: new Set(),
+                styles: { // Store color and opacity separately
+                    pointColor: '#ff0000',      pointOpacity: 0.7,
+                    lineColor: '#10b981',       lineOpacity: 1.0,
+                    polygonFillColor: '#4f46e5', polygonFillOpacity: 0.5,
+                    polygonOutlineColor: '#4f46e5', polygonOutlineOpacity: 1.0,
                 },
                 status: (message, isError = false) => {
                     const statusEl = card.querySelector('.status');
@@ -387,13 +417,13 @@
                 }
             };
             
-            // NEW: Set up color pickers
-            card.querySelectorAll('.color-picker').forEach(picker => {
-                const styleType = picker.dataset.styleType;
-                picker.value = layerState.colors[styleType];
-                picker.addEventListener('input', (e) => {
-                    layerState.colors[styleType] = e.target.value;
-                    updateLayerPaint(layerId, styleType, e.target.value);
+            // Set up style inputs
+            card.querySelectorAll('.style-input').forEach(input => {
+                const styleType = input.dataset.styleType;
+                input.value = layerState.styles[styleType];
+                input.addEventListener('input', (e) => {
+                    layerState.styles[styleType] = e.target.type === 'range' ? parseFloat(e.target.value) : e.target.value;
+                    updateLayerPaint(layerId);
                 });
             });
 
@@ -409,7 +439,7 @@
             layers.set(layerId, layerState);
             layerOrder.unshift(layerId);
 
-            addDragAndDropForCard(card);
+            addDragAndDropForCard(draggableHandle, card);
             return layerState;
         }
 
@@ -449,25 +479,16 @@
             layer.card.querySelector('.toggle-visibility').innerHTML = layer.isVisible ? eyeIcon : eyeOffIcon;
         }
         
-        // NEW: Function to update map paint properties live
-        function updateLayerPaint(layerId, styleType, color) {
+        function updateLayerPaint(layerId) {
             const layer = layers.get(layerId);
-            if (!layer || !map.getLayer(`${layerId}-points`)) return; // Check if layers exist
+            if (!layer || !map.getSource(layer.id)) return;
 
-            switch(styleType) {
-                case 'points':
-                    map.setPaintProperty(`${layerId}-points`, 'circle-color', color);
-                    break;
-                case 'lines':
-                    map.setPaintProperty(`${layerId}-lines`, 'line-color', color);
-                    break;
-                case 'polygonFill':
-                    map.setPaintProperty(`${layerId}-polygons`, 'fill-color', color);
-                    break;
-                case 'polygonOutline':
-                    map.setPaintProperty(`${layerId}-polygon-outline`, 'line-color', color);
-                    break;
-            }
+            // Use the combined color+opacity values to update paint properties
+            const { styles } = layer;
+            map.setPaintProperty(`${layerId}-points`, 'circle-color', hexToRgba(styles.pointColor, styles.pointOpacity));
+            map.setPaintProperty(`${layerId}-lines`, 'line-color', hexToRgba(styles.lineColor, styles.lineOpacity));
+            map.setPaintProperty(`${layerId}-polygons`, 'fill-color', hexToRgba(styles.polygonFillColor, styles.polygonFillOpacity));
+            map.setPaintProperty(`${layerId}-polygon-outline`, 'line-color', hexToRgba(styles.polygonOutlineColor, styles.polygonOutlineOpacity));
         }
 
         function handleFile(file) {
@@ -476,7 +497,7 @@
                 return;
             };
             const newLayer = createLayer(file);
-            addLayerToMap(newLayer); // Pass the whole layer state
+            addLayerToMap(newLayer);
             processFile(newLayer);
         }
 
@@ -500,12 +521,15 @@
         function resetLayerState(layer) {
             layer.geoJsonFeatures = [];
             layer.isUpdateScheduled = false;
+            layer.detectedGeomTypes.clear();
+
+            // Hide all style controls on reset
+            layer.card.querySelectorAll('.style-control').forEach(el => el.classList.add('hidden'));
 
             const source = map.getSource(layer.id);
             if (source) {
                 source.setData({ type: 'FeatureCollection', features: [] });
             }
-
             layer.updateCounter('batch', 0);
             layer.updateCounter('processed', 0);
             layer.updateCounter('map', 0);
@@ -525,6 +549,27 @@
                     if (payload.totalProcessed) layer.updateCounter('processed', payload.totalProcessed);
                     break;
                 case 'features':
+                    // On first batch, detect geometry types to show relevant style controls
+                    if (layer.detectedGeomTypes.size === 0 && payload.length > 0) {
+                        payload.forEach(f => {
+                            const geomType = f.geometry.type;
+                            if (geomType === 'MultiPolygon') {
+                                layer.detectedGeomTypes.add('Polygon');
+                            } else if (geomType === 'MultiLineString') {
+                                layer.detectedGeomTypes.add('LineString');
+                            } else if (geomType === 'MultiPoint') {
+                                 layer.detectedGeomTypes.add('Point');
+                            } else {
+                                layer.detectedGeomTypes.add(geomType);
+                            }
+                        });
+                        layer.card.querySelectorAll('.style-control').forEach(control => {
+                            if (layer.detectedGeomTypes.has(control.dataset.geomType)) {
+                                control.classList.remove('hidden');
+                            }
+                        });
+                    }
+
                     payload.forEach(f => f.id = `${layer.id}-${f.id}`);
                     layer.geoJsonFeatures.push(...payload);
 
@@ -539,9 +584,7 @@
                         ? `✅ Stopped at limit of ${payload.limit.toLocaleString()}.`
                         : `✅ Finished streaming.`;
                     layer.status(finalMsg);
-
                     if (updateStrategy === 'final') forceFinalUpdate(layer);
-
                     fitMapToBounds(layer.geoJsonFeatures);
                     break;
                 case 'error':
@@ -572,9 +615,9 @@
             updateMapData(layer);
         }
 
-        function addLayerToMap(layer) { // Pass the whole layer state
+        function addLayerToMap(layer) {
             const layerId = layer.id;
-            const colors = layer.colors; // Get colors from state
+            const { styles } = layer;
             if (map.getSource(layerId)) return;
 
             map.addSource(layerId, {
@@ -582,12 +625,14 @@
                 data: { type: 'FeatureCollection', features: [] },
                 promoteId: 'id'
             });
-
+            
+            // FIX: MapLibre filters only accept singular geometry types.
+            // It automatically handles 'Multi' versions of the same type.
             const layerDefinitions = [
-                { id: `${layerId}-points`, type: 'circle', filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 4, 'circle-color': colors.points, 'circle-opacity': 0.7, 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0], 'circle-stroke-color': '#ffffff' } },
-                { id: `${layerId}-lines`, type: 'line', filter: ['==', '$type', 'LineString'], paint: { 'line-color': colors.lines, 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] } },
-                { id: `${layerId}-polygons`, type: 'fill', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': colors.polygonFill, 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.7, 1] } }, // Adjusted opacity logic
-                { id: `${layerId}-polygon-outline`, type: 'line', filter: ['==', '$type', 'Polygon'], paint: { 'line-color': colors.polygonOutline, 'line-width': 1 } },
+                { id: `${layerId}-points`, type: 'circle', filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 4, 'circle-color': hexToRgba(styles.pointColor, styles.pointOpacity), 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0], 'circle-stroke-color': '#ffffff' } },
+                { id: `${layerId}-lines`, type: 'line', filter: ['==', '$type', 'LineString'], paint: { 'line-color': hexToRgba(styles.lineColor, styles.lineOpacity), 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] } },
+                { id: `${layerId}-polygons`, type: 'fill', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': hexToRgba(styles.polygonFillColor, styles.polygonFillOpacity), 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.7, 1] } },
+                { id: `${layerId}-polygon-outline`, type: 'line', filter: ['==', '$type', 'Polygon'], paint: { 'line-color': hexToRgba(styles.polygonOutlineColor, styles.polygonOutlineOpacity), 'line-width': 1 } },
             ];
 
             layerDefinitions.forEach(def => {
@@ -705,14 +750,13 @@
             draggedItem = null;
         });
 
-        function addDragAndDropForCard(card) {
-            card.addEventListener('dragstart', (e) => {
-                const draggedElement = e.currentTarget;
-                draggedItem = draggedElement;
+        function addDragAndDropForCard(handle, card) {
+            handle.addEventListener('dragstart', (e) => {
+                draggedItem = card;
 
                 setTimeout(() => {
-                    if (draggedElement) {
-                        draggedElement.classList.add('dragging');
+                    if (draggedItem) {
+                        draggedItem.classList.add('dragging');
                     }
                 }, 0);
             });
@@ -737,7 +781,7 @@
         }
 
         function getDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('[draggable="true"]:not(.dragging)')];
+            const draggableElements = [...container.querySelectorAll(':scope > div:not(.dragging)')];
             return draggableElements.reduce((closest, child) => {
                 const box = child.getBoundingClientRect();
                 const offset = y - box.top - box.height / 2;
