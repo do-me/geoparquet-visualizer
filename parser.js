@@ -5,6 +5,18 @@ import * as parquet from 'https://cdn.jsdelivr.net/npm/parquet-wasm@0.7.0/esm/pa
 
 let wasmInitialized = false;
 
+// Find the geometry column name dynamically.
+// Looks for "geometry" first, then common alternatives like "geom" or "wkb".
+function findGeometryColumnName(row) {
+    const commonNames = ['geometry', 'geom', 'wkb_geometry', 'shape', 'wkb'];
+    for (const name of commonNames) {
+        if (row[name] instanceof Uint8Array) {
+            return name;
+        }
+    }
+    return null; // Return null if no suitable column is found
+}
+
 // Async generator function to process the file stream, now accepting a feature limit.
 export async function* processParquetStream(file, limit = Infinity) {
     if (!wasmInitialized) {
@@ -22,6 +34,9 @@ export async function* processParquetStream(file, limit = Infinity) {
 
     let totalProcessed = 0;
     let limitReached = false;
+    
+    let geometryColumnName = null; // To store the detected geometry column name
+    
 
     while (true) {
         const { done, value: wasmRecordBatch } = await reader.read();
@@ -34,6 +49,12 @@ export async function* processParquetStream(file, limit = Infinity) {
         const batchFeatures = [];
         const rowArray = table.toArray();
 
+        // On the first batch, try to detect the geometry column name
+        if (!geometryColumnName && rowArray.length > 0) {
+            const firstRow = rowArray[0].toJSON();
+            geometryColumnName = findGeometryColumnName(firstRow);
+        }
+        
         for (const rowObject of rowArray) {
             // Check the feature limit before processing the row.
             if (totalProcessed >= limit) {
@@ -62,12 +83,13 @@ export async function* processParquetStream(file, limit = Infinity) {
                 }
             }
             let geometry = null;
-            
-            // Priority 1: Try to parse WKB geometry
-            if (row.geometry instanceof Uint8Array) {
-                const buffer = row.geometry.buffer.slice(
-                    row.geometry.byteOffset,
-                    row.geometry.byteOffset + row.geometry.byteLength
+
+            // Priority 1: Try to parse WKB geometry from the dynamically found column
+            if (geometryColumnName && row[geometryColumnName] instanceof Uint8Array) {
+                const wkb = row[geometryColumnName];
+                const buffer = wkb.buffer.slice(
+                    wkb.byteOffset,
+                    wkb.byteOffset + wkb.byteLength
                 );
                 geometry = parseWKB(buffer);
             }
@@ -79,6 +101,11 @@ export async function* processParquetStream(file, limit = Infinity) {
             if (geometry) {
                 // Create a clean properties object
                 const properties = { ...row };
+
+                if (geometryColumnName) {
+                    delete properties[geometryColumnName];
+                }
+
                 delete properties.geometry;
                 delete properties.geometry_bbox;  // Also remove the bbox geometry
                 
@@ -133,6 +160,17 @@ function parseWKB(wkbBuffer) {
             offset += 8;
             return [x, y];
         }
+        
+        // Helper to read multiple points for LineString or MultiPoint
+        function readPoints() {
+            const numPoints = view.getUint32(offset, littleEndian);
+            offset += 4;
+            const points = [];
+            for (let i = 0; i < numPoints; i++) {
+                points.push(readPoint());
+            }
+            return points;
+        }
 
         // Helper function to read a ring (for polygons)
         function readLinearRing() {
@@ -161,17 +199,25 @@ function parseWKB(wkbBuffer) {
                 return { type: 'Point', coordinates: readPoint() };
             
             case 2: // LineString
-                const numLinePoints = view.getUint32(offset, littleEndian);
-                offset += 4;
-                const linePoints = [];
-                for (let i = 0; i < numLinePoints; i++) {
-                    linePoints.push(readPoint());
-                }
-                return { type: 'LineString', coordinates: linePoints };
+                return { type: 'LineString', coordinates: readPoints() };
             
             case 3: // Polygon
                 return { type: 'Polygon', coordinates: readPolygonRings() };
 
+            case 4: // MultiPoint
+                return { type: 'MultiPoint', coordinates: readPoints() };
+            
+            case 5: // MultiLineString
+                const numLines = view.getUint32(offset, littleEndian);
+                offset += 4;
+                const lines = [];
+                for (let i = 0; i < numLines; i++) {
+                    offset++; // Skip byte order for each part
+                    offset += 4; // Skip geometry type for each part
+                    lines.push(readPoints());
+                }
+                return { type: 'MultiLineString', coordinates: lines };
+            
             case 6: // MultiPolygon
                 const numPolygons = view.getUint32(offset, littleEndian);
                 offset += 4;
