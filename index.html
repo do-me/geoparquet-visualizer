@@ -46,7 +46,7 @@
             pointer-events: none;
         }
 
-        details[open]>summary>svg {
+        details[open]>summary>svg.collapsible-arrow {
             transform: rotate(180deg);
         }
 
@@ -62,16 +62,19 @@
             border-radius: 0.375rem;
             cursor: pointer;
         }
+
         input[type="color"]::-webkit-color-swatch-wrapper {
             padding: 0;
         }
+
         input[type="color"]::-webkit-color-swatch {
             border-radius: 0.375rem;
             border: 1px solid #e5e7eb;
         }
+
         input[type="color"]::-moz-color-swatch {
-             border-radius: 0.375rem;
-             border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
         }
     </style>
 </head>
@@ -81,6 +84,12 @@
     <div class="relative h-full w-full">
         <!-- Map Container (Full Screen) -->
         <div id="map" class="absolute inset-0 w-full h-full"></div>
+
+        <!-- NEW: Pitch/Bearing display -->
+        <div
+            class="absolute bottom-11 right-3 z-10 bg-white/80 backdrop-blur rounded-md shadow px-2 py-1 text-xs text-gray-700 font-mono pointer-events-none">
+            <span id="map-bearing-display">Bearing: 0.0°</span> | <span id="map-pitch-display">Pitch: 0.0°</span>
+        </div>
 
         <!-- Toggle Sidebar Button (only visible when sidebar is closed) -->
         <button id="toggle-sidebar-outer"
@@ -96,104 +105,218 @@
             <!-- Sidebar Content -->
             <div class="h-full bg-white/95 backdrop-blur shadow-xl overflow-y-auto flex flex-col">
                 <!-- Header -->
-                <div class="px-6 py-6 border-b border-gray-200 bg-white">
-                    <div class="flex items-center justify-between mb-2">
+                <div class="px-6 py-5 border-b border-gray-200 bg-white">
+                    <div class="flex items-center justify-between">
                         <h1 class="text-2xl font-bold text-gray-900">GeoParquet Visualizer</h1>
-                        <button id="toggle-sidebar-inner" class="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 6h16M4 12h16m-7 6h7"></path>
-                            </svg>
-                        </button>
+                        <div class="flex items-center gap-2 -mr-2">
+                            <button id="share-map-button"
+                                class="hidden px-3 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary text-sm font-semibold flex-shrink-0 items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.368a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                                </svg>
+                                <span>Share</span>
+                            </button>
+                            <button id="toggle-sidebar-inner"
+                                class="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 6h16M4 12h16m-7 6h7"></path>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
-                    <p class="text-sm text-gray-600 mt-1">Visualize spatial data from GeoParquet and Parquet files. Uses
-                        geometry column or lat/lon as fallback. <br><a
-                            href="https://github.com/do-me/geoparquet-visualizer/"
-                            target="_blank">github.com/do-me/geoparquet-visualizer</a></p>
+                    <p class="text-sm text-gray-600 mt-1">Visualize Parquet & GeoParquet files from local or remote
+                        URLs.</p>
                 </div>
 
-                <!-- Settings & Upload (always visible) -->
-                <div class="p-6 border-b border-gray-200 bg-gray-50/50">
-                    <!-- Upload Zone -->
-                    <div id="drop-zone"
-                        class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors duration-200 cursor-pointer bg-white/50 backdrop-blur mb-6">
-                        <div class="space-y-3">
-                            <div class="inline-flex p-2 rounded-full bg-primary/10">
-                                <svg class="w-6 h-6 text-primary" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                                    <path
-                                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4-4m4-4h8m-4-4v8m-12 4h.02"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <!-- NEW: Map Settings -->
+                <div class="p-6 border-b border-gray-200">
+                    <details>
+                        <summary
+                            class="flex items-center justify-between cursor-pointer font-medium text-lg text-gray-800 hover:text-primary">
+                            <span class="flex items-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                            </div>
-                            <div>
-                                <label for="file-input"
-                                    class="relative cursor-pointer rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
-                                    <span class="text-base">Upload files</span>
-                                    <input id="file-input" type="file" class="sr-only" accept=".parquet,.geoparquet"
-                                        multiple>
-                                </label>
-                                <p class="text-sm text-gray-500 mt-1">or drag and drop</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Feature Limit -->
-                    <div class="relative">
-                        <label for="limit-input" class="block text-sm font-medium text-gray-900 mb-1">
-                            Feature Limit
-                            <span class="ml-1 text-xs text-gray-500">(per file)</span>
-                        </label>
-                        <div class="relative mt-1 rounded-md shadow-sm">
-                            <input type="number" id="limit-input" value="100000" min="1"
-                                class="block w-full rounded-lg border-gray-200 px-4 pr-16 text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary sm:text-sm sm:leading-6 transition-colors duration-200">
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
-                                <span class="text-gray-400 sm:text-sm">points</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Advanced Options (Collapsible) -->
-                    <details class="mt-4">
-                        <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-primary">
-                            <span class="flex items-center gap-1">
-                                <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor"
-                                    viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M19 9l-7 7-7-7"></path>
-                                </svg>
-                                Advanced Options
+                                Map Settings
                             </span>
+                            <svg class="w-5 h-5 transition-transform duration-200 collapsible-arrow" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7"></path>
+                            </svg>
                         </summary>
-                        <div class="relative mt-4 pl-5">
-                            <label class="block text-sm font-medium text-gray-900 mb-1">
-                                Update Strategy
-                                <span class="ml-1 text-xs text-gray-500">(how to refresh the map)</span>
-                            </label>
-                            <div class="mt-2 space-y-2">
-                                <div class="flex items-center"><input type="radio" id="strategy-final"
-                                        name="update-strategy" value="final" checked
-                                        class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"><label
-                                        for="strategy-final" class="ml-2 block text-sm text-gray-900">Only when finished
-                                        <span class="text-xs text-gray-500 block">Best for large files</span></label>
+                        <div class="mt-6 space-y-4">
+                            <div>
+                                <label for="style-url-input" class="block text-sm font-medium text-gray-900">
+                                    Basemap Style URL
+                                </label>
+                                <div class="mt-1 flex gap-2">
+                                    <input type="url" id="style-url-input" placeholder="https://..."
+                                        class="block w-full rounded-lg border-gray-200 px-4 text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary sm:text-sm sm:leading-6 transition-colors duration-200">
+                                    <button id="set-style-button"
+                                        class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary text-sm font-semibold flex-shrink-0">Set</button>
                                 </div>
-                                <div class="flex items-center"><input type="radio" id="strategy-live"
-                                        name="update-strategy" value="live"
-                                        class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"><label
-                                        for="strategy-live" class="ml-2 block text-sm text-gray-900">Live updates <span
-                                            class="text-xs text-gray-500 block">For smaller files</span></label></div>
                             </div>
                         </div>
                     </details>
                 </div>
 
-                <!-- Layer List -->
-                <div id="layer-list-container" class="flex-grow p-6 space-y-4 overflow-y-auto">
-                    <!-- Layer cards will be inserted here -->
-                    <div id="initial-message" class="text-center text-gray-500 pt-8">
-                        <p>No layers loaded.</p>
-                        <p class="text-sm">Upload a Parquet file to begin.</p>
-                    </div>
+                <!-- Collapsible Add Layer section -->
+                <div class="p-6 border-b border-gray-200 bg-gray-50/50">
+                    <details open>
+                        <summary
+                            class="flex items-center justify-between cursor-pointer font-medium text-lg text-gray-800 hover:text-primary">
+                            <span class="flex items-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Add New Layer
+                            </span>
+                            <svg class="w-5 h-5 transition-transform duration-200 collapsible-arrow" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </summary>
+
+                        <div class="mt-6 space-y-6">
+                            <!-- Upload Zone -->
+                            <div id="drop-zone"
+                                class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors duration-200 cursor-pointer bg-white/50 backdrop-blur">
+                                <div class="space-y-3">
+                                    <div class="inline-flex p-2 rounded-full bg-primary/10">
+                                        <svg class="w-6 h-6 text-primary" stroke="currentColor" fill="none"
+                                            viewBox="0 0 48 48">
+                                            <path
+                                                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4-4m4-4h8m-4-4v8m-12 4h.02"
+                                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <label for="file-input"
+                                            class="relative cursor-pointer rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
+                                            <span class="text-base">Upload files</span>
+                                            <input id="file-input" type="file" class="sr-only"
+                                                accept=".parquet,.geoparquet" multiple>
+                                        </label>
+                                        <p class="text-sm text-gray-500 mt-1">or drag and drop</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- URL Input -->
+                            <div class="relative flex items-center">
+                                <div class="flex-grow border-t border-gray-300"></div>
+                                <span class="flex-shrink mx-4 text-gray-400 text-xs font-semibold">OR</span>
+                                <div class="flex-grow border-t border-gray-300"></div>
+                            </div>
+                            <div class="space-y-2">
+                                <label for="url-input" class="block text-sm font-medium text-gray-900">
+                                    Load from URL
+                                </label>
+                                <div class="flex gap-2">
+                                    <input type="url" id="url-input" placeholder="https://..."
+                                        class="block w-full rounded-lg border-gray-200 px-4 text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary sm:text-sm sm:leading-6 transition-colors duration-200">
+                                    <button id="load-url-button"
+                                        class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary text-sm font-semibold flex-shrink-0">Load</button>
+                                </div>
+                            </div>
+
+                            <!-- Feature Limit -->
+                            <div class="relative pt-2">
+                                <label for="limit-input" class="block text-sm font-medium text-gray-900 mb-1">
+                                    Feature Limit
+                                    <span class="ml-1 text-xs text-gray-500">(per file)</span>
+                                </label>
+                                <div class="relative mt-1 rounded-md shadow-sm">
+                                    <input type="number" id="limit-input" value="100000" min="1"
+                                        class="block w-full rounded-lg border-gray-200 px-4 pr-16 text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary sm:text-sm sm:leading-6 transition-colors duration-200">
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
+                                        <span class="text-gray-400 sm:text-sm">points</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Advanced Options (Nested Collapsible) -->
+                            <details class="pt-2">
+                                <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-primary">
+                                    <span class="flex items-center gap-1">
+                                        <svg class="w-4 h-4 transition-transform duration-200 collapsible-arrow"
+                                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                        Advanced Options
+                                    </span>
+                                </summary>
+                                <div class="relative mt-4 pl-5">
+                                    <label class="block text-sm font-medium text-gray-900 mb-1">
+                                        Update Strategy
+                                        <span class="ml-1 text-xs text-gray-500">(how to refresh the map)</span>
+                                    </label>
+                                    <div class="mt-2 space-y-2">
+                                        <div class="flex items-center"><input type="radio" id="strategy-final"
+                                                name="update-strategy" value="final" checked
+                                                class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"><label
+                                                for="strategy-final" class="ml-2 block text-sm text-gray-900">Only when
+                                                finished
+                                                <span class="text-xs text-gray-500 block">Best for large
+                                                    files</span></label>
+                                        </div>
+                                        <div class="flex items-center"><input type="radio" id="strategy-live"
+                                                name="update-strategy" value="live"
+                                                class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"><label
+                                                for="strategy-live" class="ml-2 block text-sm text-gray-900">Live
+                                                updates <span class="text-xs text-gray-500 block">For smaller
+                                                    files</span></label></div>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                    </details>
                 </div>
+
+                <!-- Layer List -->
+                <!-- Collapsible Add Layer section -->
+                <div class="p-6 border-b border-gray-200 bg-gray-50/50">
+                    <details open>
+                        <summary
+                            class="flex items-center justify-between cursor-pointer font-medium text-lg text-gray-800 hover:text-primary">
+                            <span class="flex items-center gap-3">
+                                <!-- New Layers SVG Icon -->
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 2L3 7l9 5 9-5-9-5z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M3 12l9 5 9-5M3 17l9 5 9-5" />
+                                </svg>
+                                Layers
+                            </span>
+                            <svg class="w-5 h-5 transition-transform duration-200 collapsible-arrow" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </summary>
+                        <div id="layer-list-container" class="flex-grow p-6 space-y-4 overflow-y-auto">
+                            <!-- Layer cards will be inserted here -->
+                            <div id="initial-message" class="text-center text-gray-500 pt-8">
+                                <p>No layers loaded.</p>
+                                <p class="text-sm">Click 'Add New Layer' to begin.</p>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
 
             </div>
         </div>
@@ -212,7 +335,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                         </svg>
-                        <h3 class="file-info text-sm font-medium text-gray-900 truncate" title="Filename">No file selected
+                        <h3 class="file-info text-sm font-medium text-gray-900 truncate" title="Filename">No file
+                            selected
                         </h3>
                     </div>
                     <div class="flex gap-1 flex-shrink-0">
@@ -252,7 +376,7 @@
                         <dd class="batch-counter mt-1 text-sm font-semibold text-primary">0</dd>
                     </div>
                 </div>
-                 <!-- Status -->
+                <!-- Status -->
                 <div class="mt-3">
                     <pre
                         class="status text-xs bg-gray-50 rounded p-2 font-mono whitespace-pre-wrap text-gray-600 border border-gray-100">Waiting...</pre>
@@ -262,8 +386,10 @@
             <details class="mt-3" draggable="false"> <!-- FIX: Prevent this section from being draggable -->
                 <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-primary">
                     <span class="flex items-center gap-1">
-                        <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        <svg class="w-4 h-4 transition-transform duration-200 collapsible-arrow" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
                         </svg>
                         Layer Styling
                     </span>
@@ -274,7 +400,8 @@
                         <label class="text-sm text-gray-800">Points</label>
                         <div class="flex items-center gap-2 mt-1">
                             <input type="color" class="style-input" data-style-type="pointColor" value="#ff0000">
-                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input" data-style-type="pointOpacity" value="0.7">
+                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input"
+                                data-style-type="pointOpacity" value="0.7">
                         </div>
                     </div>
                     <!-- Line Styles -->
@@ -282,7 +409,8 @@
                         <label class="text-sm text-gray-800">Lines</label>
                         <div class="flex items-center gap-2 mt-1">
                             <input type="color" class="style-input" data-style-type="lineColor" value="#10B981">
-                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input" data-style-type="lineOpacity" value="1">
+                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input"
+                                data-style-type="lineOpacity" value="1">
                         </div>
                     </div>
                     <!-- Polygon Fill Styles -->
@@ -290,15 +418,18 @@
                         <label class="text-sm text-gray-800">Polygon Fill</label>
                         <div class="flex items-center gap-2 mt-1">
                             <input type="color" class="style-input" data-style-type="polygonFillColor" value="#4F46E5">
-                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input" data-style-type="polygonFillOpacity" value="0.5">
+                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input"
+                                data-style-type="polygonFillOpacity" value="0.5">
                         </div>
                     </div>
                     <!-- Polygon Outline Styles -->
                     <div class="style-control hidden" data-geom-type="Polygon">
-                         <label class="text-sm text-gray-800">Polygon Outline</label>
+                        <label class="text-sm text-gray-800">Polygon Outline</label>
                         <div class="flex items-center gap-2 mt-1">
-                            <input type="color" class="style-input" data-style-type="polygonOutlineColor" value="#4F46E5">
-                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input" data-style-type="polygonOutlineOpacity" value="1">
+                            <input type="color" class="style-input" data-style-type="polygonOutlineColor"
+                                value="#4F46E5">
+                            <input type="range" min="0" max="1" step="0.05" class="w-full style-input"
+                                data-style-type="polygonOutlineOpacity" value="1">
                         </div>
                     </div>
                 </div>
@@ -311,6 +442,8 @@
         // --- DOM Elements ---
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
+        const urlInput = document.getElementById('url-input');
+        const loadUrlButton = document.getElementById('load-url-button');
         const limitInput = document.getElementById('limit-input');
         const sidebarEl = document.getElementById('sidebar');
         const toggleSidebarOuterBtn = document.getElementById('toggle-sidebar-outer');
@@ -318,14 +451,22 @@
         const layerListContainer = document.getElementById('layer-list-container');
         const layerCardTemplate = document.getElementById('layer-card-template');
         const initialMessage = document.getElementById('initial-message');
+        const shareMapButton = document.getElementById('share-map-button');
+        const styleUrlInput = document.getElementById('style-url-input');
+        const setStyleButton = document.getElementById('set-style-button');
+        const mapBearingDisplay = document.getElementById('map-bearing-display');
+        const mapPitchDisplay = document.getElementById('map-pitch-display');
 
         const eyeIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`;
         const eyeOffIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>`;
 
         // --- State Management ---
+        let map; // Initialized in initializeApp
         let layers = new Map(); // Using a Map to store layer state by ID
         let layerOrder = []; // Array of layer IDs to manage rendering order
         let nextLayerId = 0;
+        let isSidebarOpen = true;
+        let currentStyleUrl = 'https://tiles.openfreemap.org/styles/liberty';
 
         // --- Helper Function ---
         function hexToRgba(hex, alpha = 1) {
@@ -334,51 +475,57 @@
             const b = parseInt(hex.slice(5, 7), 16);
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
-        
+
         // --- Sidebar Toggle ---
-        let isSidebarOpen = true;
-        toggleSidebarOuterBtn.classList.add('opacity-0', 'pointer-events-none');
-        function toggleSidebar() {
+        function toggleSidebar(updateUrl = true) {
             isSidebarOpen = !isSidebarOpen;
             sidebarEl.classList.toggle('-translate-x-full', !isSidebarOpen);
             toggleSidebarOuterBtn.classList.toggle('opacity-0', isSidebarOpen);
             toggleSidebarOuterBtn.classList.toggle('pointer-events-none', isSidebarOpen);
             setTimeout(() => map.resize(), 350);
+            if (updateUrl) updateUrlParams();
         }
-        toggleSidebarOuterBtn.addEventListener('click', toggleSidebar);
-        toggleSidebarInnerBtn.addEventListener('click', toggleSidebar);
 
-        // --- Drag & Drop for Upload ---
+        // --- File Handling (Drag-and-Drop, Input, URL) ---
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
             dropZone.addEventListener(e, preventDefaults, false);
             document.body.addEventListener(e, preventDefaults, false);
         });
         ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('border-primary'), false));
         ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('border-primary'), false));
-        dropZone.addEventListener('drop', handleDrop, false);
-        dropZone.addEventListener('click', () => fileInput.click(), false);
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                [...e.target.files].forEach(handleFile);
-                fileInput.value = '';
-            }
-        });
 
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
         function handleDrop(e) { [...e.dataTransfer.files].forEach(handleFile); }
 
-        // --- Map Initialization ---
-        const map = new maplibregl.Map({
-            container: 'map',
-            style: 'https://tiles.openfreemap.org/styles/liberty',
-            center: [11.5, 48.1],
-            zoom: 5
-        });
+        async function loadFromUrl(urlString) {
+            const placeholderFile = { name: urlString, size: 0 };
+            const newLayer = createLayer(placeholderFile, 'url'); // Identify as URL type
+            newLayer.status(`Downloading from ${urlString}...`);
 
-        map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+            try {
+                const response = await fetch(urlString);
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                const blob = await response.blob();
+                const file = new File([blob], urlString.split('/').pop(), { type: blob.type });
+
+                newLayer.file = file;
+                const fileInfoEl = newLayer.card.querySelector('.file-info');
+                fileInfoEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                fileInfoEl.title = file.name;
+
+                addLayerToMap(newLayer);
+                processFile(newLayer);
+                updateUrlParams();
+                updateShareButtonVisibility();
+
+            } catch (error) {
+                console.error("Failed to load from URL:", error);
+                newLayer.status(`❌ Error loading from URL: ${error.message}`, true);
+            }
+        }
 
         // --- Layer Card & State Management ---
-        function createLayer(file) {
+        function createLayer(file, sourceType = 'local') {
             const layerId = `layer-${nextLayerId++}`;
             const card = layerCardTemplate.content.cloneNode(true).firstElementChild;
             card.dataset.id = layerId;
@@ -387,24 +534,17 @@
             draggableHandle.draggable = true;
 
             const fileInfoEl = card.querySelector('.file-info');
-            fileInfoEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+            const sizeMb = (file.size / 1024 / 1024).toFixed(2);
+            fileInfoEl.textContent = sizeMb === '0.00' ? file.name : `${file.name} (${sizeMb} MB)`;
             fileInfoEl.title = file.name;
 
             const layerState = {
                 id: layerId,
                 file: file,
-                card: card,
-                worker: null,
-                geoJsonFeatures: [],
-                isUpdateScheduled: false,
-                isVisible: true,
-                detectedGeomTypes: new Set(),
-                styles: { // Store color and opacity separately
-                    pointColor: '#ff0000',      pointOpacity: 0.7,
-                    lineColor: '#10b981',       lineOpacity: 1.0,
-                    polygonFillColor: '#4f46e5', polygonFillOpacity: 0.5,
-                    polygonOutlineColor: '#4f46e5', polygonOutlineOpacity: 1.0,
-                },
+                sourceType: sourceType,
+                sourceUrl: sourceType === 'url' ? file.name : null,
+                card: card, worker: null, geoJsonFeatures: [], isUpdateScheduled: false, isVisible: true, detectedGeomTypes: new Set(),
+                styles: { pointColor: '#ff0000', pointOpacity: 0.7, lineColor: '#10b981', lineOpacity: 1.0, polygonFillColor: '#4f46e5', polygonFillOpacity: 0.5, polygonOutlineColor: '#4f46e5', polygonOutlineOpacity: 1.0 },
                 status: (message, isError = false) => {
                     const statusEl = card.querySelector('.status');
                     statusEl.textContent = message;
@@ -416,8 +556,7 @@
                     if (el) el.textContent = value.toLocaleString();
                 }
             };
-            
-            // Set up style inputs
+
             card.querySelectorAll('.style-input').forEach(input => {
                 const styleType = input.dataset.styleType;
                 input.value = layerState.styles[styleType];
@@ -427,7 +566,16 @@
                 });
             });
 
-            card.querySelector('.reload-file').addEventListener('click', () => processFile(layerState));
+            card.querySelector('.reload-file').addEventListener('click', () => {
+                if (layerState.sourceType === 'url' && layerState.sourceUrl) {
+                    const oldCard = layerState.card;
+                    loadFromUrl(layerState.sourceUrl).then(() => oldCard.remove());
+                    removeLayer(layerId, false);
+                } else {
+                    processFile(layerState);
+                }
+            });
+
             card.querySelector('.remove-file').addEventListener('click', () => removeLayer(layerId));
             const visibilityBtn = card.querySelector('.toggle-visibility');
             visibilityBtn.innerHTML = eyeIcon;
@@ -435,15 +583,13 @@
 
             layerListContainer.prepend(card);
             initialMessage.style.display = 'none';
-
             layers.set(layerId, layerState);
             layerOrder.unshift(layerId);
-
             addDragAndDropForCard(draggableHandle, card);
             return layerState;
         }
 
-        function removeLayer(layerId) {
+        function removeLayer(layerId, doUpdateUrl = true) {
             const layer = layers.get(layerId);
             if (!layer) return;
 
@@ -458,9 +604,12 @@
             layers.delete(layerId);
             layerOrder = layerOrder.filter(id => id !== layerId);
 
-            if (layers.size === 0) {
-                initialMessage.style.display = 'block';
+            if (doUpdateUrl) {
+                updateUrlParams();
+                updateShareButtonVisibility();
             }
+
+            if (layers.size === 0) initialMessage.style.display = 'block';
         }
 
         function toggleLayerVisibility(layerId) {
@@ -471,19 +620,14 @@
             const visibility = layer.isVisible ? 'visible' : 'none';
             ['points', 'lines', 'polygons', 'polygon-outline'].forEach(type => {
                 const mapLayerId = `${layer.id}-${type}`;
-                if (map.getLayer(mapLayerId)) {
-                    map.setLayoutProperty(mapLayerId, 'visibility', visibility);
-                }
+                if (map.getLayer(mapLayerId)) map.setLayoutProperty(mapLayerId, 'visibility', visibility);
             });
-
             layer.card.querySelector('.toggle-visibility').innerHTML = layer.isVisible ? eyeIcon : eyeOffIcon;
         }
-        
+
         function updateLayerPaint(layerId) {
             const layer = layers.get(layerId);
             if (!layer || !map.getSource(layer.id)) return;
-
-            // Use the combined color+opacity values to update paint properties
             const { styles } = layer;
             map.setPaintProperty(`${layerId}-points`, 'circle-color', hexToRgba(styles.pointColor, styles.pointOpacity));
             map.setPaintProperty(`${layerId}-lines`, 'line-color', hexToRgba(styles.lineColor, styles.lineOpacity));
@@ -496,7 +640,7 @@
                 setTimeout(() => handleFile(file), 100);
                 return;
             };
-            const newLayer = createLayer(file);
+            const newLayer = createLayer(file, 'local');
             addLayerToMap(newLayer);
             processFile(newLayer);
         }
@@ -504,15 +648,12 @@
         function processFile(layer) {
             resetLayerState(layer);
             layer.status(`Processing: ${layer.file.name}`);
-
             layer.worker?.terminate();
-
             const featureLimit = parseInt(limitInput.value, 10);
             if (isNaN(featureLimit) || featureLimit <= 0) {
                 layer.status("Error: Invalid feature limit.", true);
                 return;
             }
-
             layer.worker = new Worker('./worker.js', { type: 'module' });
             layer.worker.onmessage = (event) => handleWorkerMessage(event, layer.id);
             layer.worker.postMessage({ type: 'processFile', file: layer.file, limit: featureLimit });
@@ -522,14 +663,9 @@
             layer.geoJsonFeatures = [];
             layer.isUpdateScheduled = false;
             layer.detectedGeomTypes.clear();
-
-            // Hide all style controls on reset
             layer.card.querySelectorAll('.style-control').forEach(el => el.classList.add('hidden'));
-
             const source = map.getSource(layer.id);
-            if (source) {
-                source.setData({ type: 'FeatureCollection', features: [] });
-            }
+            if (source) source.setData({ type: 'FeatureCollection', features: [] });
             layer.updateCounter('batch', 0);
             layer.updateCounter('processed', 0);
             layer.updateCounter('map', 0);
@@ -549,40 +685,25 @@
                     if (payload.totalProcessed) layer.updateCounter('processed', payload.totalProcessed);
                     break;
                 case 'features':
-                    // On first batch, detect geometry types to show relevant style controls
                     if (layer.detectedGeomTypes.size === 0 && payload.length > 0) {
                         payload.forEach(f => {
                             const geomType = f.geometry.type;
-                            if (geomType === 'MultiPolygon') {
-                                layer.detectedGeomTypes.add('Polygon');
-                            } else if (geomType === 'MultiLineString') {
-                                layer.detectedGeomTypes.add('LineString');
-                            } else if (geomType === 'MultiPoint') {
-                                 layer.detectedGeomTypes.add('Point');
-                            } else {
-                                layer.detectedGeomTypes.add(geomType);
-                            }
+                            if (geomType === 'MultiPolygon') layer.detectedGeomTypes.add('Polygon');
+                            else if (geomType === 'MultiLineString') layer.detectedGeomTypes.add('LineString');
+                            else if (geomType === 'MultiPoint') layer.detectedGeomTypes.add('Point');
+                            else layer.detectedGeomTypes.add(geomType);
                         });
                         layer.card.querySelectorAll('.style-control').forEach(control => {
-                            if (layer.detectedGeomTypes.has(control.dataset.geomType)) {
-                                control.classList.remove('hidden');
-                            }
+                            if (layer.detectedGeomTypes.has(control.dataset.geomType)) control.classList.remove('hidden');
                         });
                     }
-
                     payload.forEach(f => f.id = `${layer.id}-${f.id}`);
                     layer.geoJsonFeatures.push(...payload);
-
-                    if (updateStrategy === 'live') {
-                        scheduleMapUpdate(layer);
-                    } else {
-                        layer.updateCounter('map', layer.geoJsonFeatures.length);
-                    }
+                    if (updateStrategy === 'live') scheduleMapUpdate(layer);
+                    else layer.updateCounter('map', layer.geoJsonFeatures.length);
                     break;
                 case 'done':
-                    const finalMsg = payload.limitReached
-                        ? `✅ Stopped at limit of ${payload.limit.toLocaleString()}.`
-                        : `✅ Finished streaming.`;
+                    const finalMsg = payload.limitReached ? `✅ Stopped at limit of ${payload.limit.toLocaleString()}.` : `✅ Finished streaming.`;
                     layer.status(finalMsg);
                     if (updateStrategy === 'final') forceFinalUpdate(layer);
                     fitMapToBounds(layer.geoJsonFeatures);
@@ -603,9 +724,7 @@
         function updateMapData(layer) {
             if (!layer) return;
             const source = map.getSource(layer.id);
-            if (source) {
-                source.setData({ type: 'FeatureCollection', features: layer.geoJsonFeatures });
-            }
+            if (source) source.setData({ type: 'FeatureCollection', features: layer.geoJsonFeatures });
             layer.updateCounter('map', layer.geoJsonFeatures.length);
             layer.isUpdateScheduled = false;
         }
@@ -619,22 +738,13 @@
             const layerId = layer.id;
             const { styles } = layer;
             if (map.getSource(layerId)) return;
-
-            map.addSource(layerId, {
-                type: 'geojson',
-                data: { type: 'FeatureCollection', features: [] },
-                promoteId: 'id'
-            });
-            
-            // FIX: MapLibre filters only accept singular geometry types.
-            // It automatically handles 'Multi' versions of the same type.
+            map.addSource(layerId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' });
             const layerDefinitions = [
                 { id: `${layerId}-points`, type: 'circle', filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 4, 'circle-color': hexToRgba(styles.pointColor, styles.pointOpacity), 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0], 'circle-stroke-color': '#ffffff' } },
                 { id: `${layerId}-lines`, type: 'line', filter: ['==', '$type', 'LineString'], paint: { 'line-color': hexToRgba(styles.lineColor, styles.lineOpacity), 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] } },
                 { id: `${layerId}-polygons`, type: 'fill', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': hexToRgba(styles.polygonFillColor, styles.polygonFillOpacity), 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.7, 1] } },
                 { id: `${layerId}-polygon-outline`, type: 'line', filter: ['==', '$type', 'Polygon'], paint: { 'line-color': hexToRgba(styles.polygonOutlineColor, styles.polygonOutlineOpacity), 'line-width': 1 } },
             ];
-
             layerDefinitions.forEach(def => {
                 map.addLayer({ ...def, source: layerId });
                 setupLayerInteractivity(def.id);
@@ -646,9 +756,7 @@
             [...layerOrder].reverse().forEach(layerId => {
                 globalLayerOrder.forEach(type => {
                     const mapLayerId = `${layerId}-${type}`;
-                    if (map.getLayer(mapLayerId)) {
-                        map.moveLayer(mapLayerId);
-                    }
+                    if (map.getLayer(mapLayerId)) map.moveLayer(mapLayerId);
                 });
             });
         }
@@ -656,127 +764,68 @@
         // --- Map Interactivity (Popup, Hover) ---
         const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '350px', className: 'bg-white/95 backdrop-blur shadow-lg rounded-lg' });
         let hoveredFeature = null;
-        let frameRequest = null;
-
-        map.on('mousemove', () => {
-            frameRequest = null;
-        });
 
         function setupLayerInteractivity(mapLayerId) {
             map.on('mousemove', mapLayerId, (e) => {
-                if (frameRequest) return;
                 if (!e.features || e.features.length === 0) return;
-                frameRequest = true;
                 map.getCanvas().style.cursor = 'pointer';
                 const currentFeature = e.features[0];
-                const properties = Object.entries(currentFeature.properties || {})
-                    .filter(([key]) => !key.toLowerCase().includes('geometry'))
-                    .map(([key, value]) => `<div class="mb-1"><span class="font-medium text-gray-700">${key}:</span> <span class="text-gray-900 break-all">${value}</span></div>`)
-                    .join('');
+                const properties = Object.entries(currentFeature.properties || {}).filter(([key]) => !key.toLowerCase().includes('geometry')).map(([key, value]) => `<div class="mb-1"><span class="font-medium text-gray-700">${key}:</span> <span class="text-gray-900 break-all">${value}</span></div>`).join('');
                 popup.setLngLat(e.lngLat).setHTML(`<div class="p-2 text-sm">${properties}</div>`).addTo(map);
-
                 const hasValidId = currentFeature.id !== undefined && currentFeature.id !== null;
                 if (hoveredFeature && (!hasValidId || hoveredFeature.id !== currentFeature.id)) {
-                    if (map.getSource(hoveredFeature.source)) {
-                        map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: false });
-                    }
+                    if (map.getSource(hoveredFeature.source)) map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: false });
                     hoveredFeature = null;
                 }
-
                 if (hasValidId && (!hoveredFeature || hoveredFeature.id !== currentFeature.id)) {
                     hoveredFeature = { id: currentFeature.id, source: currentFeature.source };
                     map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: true });
                 }
             });
-
             map.on('mouseleave', mapLayerId, () => {
                 map.getCanvas().style.cursor = '';
-                if (hoveredFeature) {
-                    if (map.getSource(hoveredFeature.source)) {
-                        map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: false });
-                    }
-                }
+                if (hoveredFeature && map.getSource(hoveredFeature.source)) map.setFeatureState({ source: hoveredFeature.source, id: hoveredFeature.id }, { hover: false });
                 hoveredFeature = null;
                 popup.remove();
             });
         }
-        map.on('style.load', () => {
-            for (const layerId of layerOrder) {
-                const layer = layers.get(layerId);
-                if (layer) {
-                    addLayerToMap(layer);
-                    updateMapData(layer);
-                }
-            }
-            reorderMapLayers();
-        });
 
         function fitMapToBounds(features) {
             if (features.length === 0 || !map.loaded()) return;
-
             const bounds = new maplibregl.LngLatBounds();
             features.forEach(feature => {
                 const type = feature.geometry?.type;
                 const coords = feature.geometry?.coordinates;
                 if (!coords) return;
-
                 if (type === 'Point') bounds.extend(coords);
                 else if (type === 'LineString' || type === 'MultiPoint') coords.forEach(c => bounds.extend(c));
                 else if (type === 'Polygon' || type === 'MultiLineString') coords.forEach(ring => ring.forEach(c => bounds.extend(c)));
                 else if (type === 'MultiPolygon') coords.forEach(poly => poly.forEach(ring => ring.forEach(c => bounds.extend(c))));
             });
-
             if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
         }
 
         // --- Drag & Drop for Layer Reordering ---
         let draggedItem = null;
-
-        layerListContainer.addEventListener('dragenter', e => {
-            e.preventDefault();
-        });
-
+        layerListContainer.addEventListener('dragenter', e => e.preventDefault());
         layerListContainer.addEventListener('drop', () => {
             if (!draggedItem) return;
             draggedItem.classList.remove('dragging');
             [...layerListContainer.children].forEach(child => child.classList.remove('drag-over'));
-
-            const newOrder = [...layerListContainer.children]
-                .map(child => child.dataset.id)
-                .filter(Boolean);
-            layerOrder = newOrder;
+            layerOrder = [...layerListContainer.children].map(child => child.dataset.id).filter(Boolean);
             reorderMapLayers();
-
             draggedItem = null;
         });
 
         function addDragAndDropForCard(handle, card) {
-            handle.addEventListener('dragstart', (e) => {
-                draggedItem = card;
-
-                setTimeout(() => {
-                    if (draggedItem) {
-                        draggedItem.classList.add('dragging');
-                    }
-                }, 0);
-            });
-
+            handle.addEventListener('dragstart', () => { draggedItem = card; setTimeout(() => card.classList.add('dragging'), 0); });
             card.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                if (!draggedItem) return;
-
+                e.preventDefault(); if (!draggedItem) return;
                 const afterElement = getDragAfterElement(layerListContainer, e.clientY);
                 [...layerListContainer.children].forEach(child => child.classList.remove('drag-over'));
-
-                if (afterElement) {
-                    afterElement.classList.add('drag-over');
-                }
-
-                if (afterElement == null) {
-                    layerListContainer.appendChild(draggedItem);
-                } else {
-                    layerListContainer.insertBefore(draggedItem, afterElement);
-                }
+                if (afterElement) afterElement.classList.add('drag-over');
+                if (afterElement == null) layerListContainer.appendChild(draggedItem);
+                else layerListContainer.insertBefore(draggedItem, afterElement);
             });
         }
 
@@ -785,13 +834,130 @@
             return draggableElements.reduce((closest, child) => {
                 const box = child.getBoundingClientRect();
                 const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                } else {
-                    return closest;
-                }
+                if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
+                else return closest;
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
+
+        // --- URL State Management & Sharing ---
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => { clearTimeout(timeout); func(...args); };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function updateUrlParams() {
+            const params = new URLSearchParams();
+            const center = map.getCenter();
+            const zoom = map.getZoom().toFixed(2);
+            const bearing = map.getBearing().toFixed(2);
+            const pitch = map.getPitch().toFixed(2);
+            params.set('map', `${zoom}/${center.lat.toFixed(5)}/${center.lng.toFixed(5)}/${bearing}/${pitch}`);
+            params.set('sidebar', isSidebarOpen ? '1' : '0');
+            params.set('style', currentStyleUrl);
+            for (const layer of layers.values()) {
+                if (layer.sourceType === 'url') params.append('url', layer.sourceUrl);
+            }
+            history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+        }
+
+        function updateShareButtonVisibility() {
+            const hasRemoteLayer = [...layers.values()].some(l => l.sourceType === 'url');
+            shareMapButton.classList.toggle('hidden', !hasRemoteLayer);
+            shareMapButton.classList.toggle('inline-flex', hasRemoteLayer);
+        }
+
+        function updateMapInfoDisplay() {
+            requestAnimationFrame(() => {
+                mapBearingDisplay.textContent = `Bearing: ${map.getBearing().toFixed(1)}°`;
+                mapPitchDisplay.textContent = `Pitch: ${map.getPitch().toFixed(1)}°`;
+            });
+        }
+
+        function handleSetStyle() {
+            const newStyleUrl = styleUrlInput.value.trim();
+            if (!newStyleUrl) return;
+            try {
+                new URL(newStyleUrl);
+                currentStyleUrl = newStyleUrl;
+                map.setStyle(newStyleUrl);
+                updateUrlParams();
+            } catch (e) {
+                alert("Invalid Basemap Style URL. Please enter a valid URL.");
+            }
+        }
+
+        const debouncedUpdateUrlForMap = debounce(updateUrlParams, 250);
+
+        // --- Initial App Load ---
+        function initializeApp() {
+            const params = new URLSearchParams(window.location.search);
+            const styleParam = params.get('style');
+            if (styleParam) {
+                try {
+                    new URL(styleParam); currentStyleUrl = styleParam;
+                } catch (e) { console.warn("Invalid style URL param, using default."); }
+            }
+
+            const mapParam = params.get('map');
+            let initialMapView = { center: [11.5, 48.1], zoom: 5, bearing: 0, pitch: 0 };
+            if (mapParam) {
+                const [zoom, lat, lng, bearing, pitch] = mapParam.split('/');
+                initialMapView = { center: [parseFloat(lng), parseFloat(lat)], zoom: parseFloat(zoom), bearing: parseFloat(bearing), pitch: parseFloat(pitch) };
+            }
+            if (params.get('sidebar') === '0') isSidebarOpen = false;
+
+            map = new maplibregl.Map({ container: 'map', style: currentStyleUrl, ...initialMapView });
+
+            styleUrlInput.value = currentStyleUrl;
+            if (!isSidebarOpen) {
+                sidebarEl.classList.add('-translate-x-full');
+                toggleSidebarOuterBtn.classList.remove('opacity-0', 'pointer-events-none');
+            } else {
+                toggleSidebarOuterBtn.classList.add('opacity-0', 'pointer-events-none');
+            }
+
+            map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+
+            toggleSidebarOuterBtn.addEventListener('click', () => toggleSidebar());
+            toggleSidebarInnerBtn.addEventListener('click', () => toggleSidebar());
+            dropZone.addEventListener('drop', handleDrop, false);
+            dropZone.addEventListener('click', () => fileInput.click(), false);
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) { [...e.target.files].forEach(handleFile); fileInput.value = ''; }
+            });
+            loadUrlButton.addEventListener('click', () => { if (urlInput.value) { loadFromUrl(urlInput.value); urlInput.value = ''; } });
+            setStyleButton.addEventListener('click', handleSetStyle);
+            shareMapButton.addEventListener('click', () => {
+                const url = new URL(window.location.href);
+                navigator.clipboard.writeText(url.toString()).then(() => {
+                    const span = shareMapButton.querySelector('span');
+                    const originalText = span.textContent;
+                    span.textContent = 'Copied!';
+                    shareMapButton.classList.add('bg-green-600');
+                    setTimeout(() => { span.textContent = originalText; shareMapButton.classList.remove('bg-green-600'); }, 2000);
+                });
+            });
+
+            map.on('moveend', debouncedUpdateUrlForMap);
+            map.on('move', updateMapInfoDisplay);
+            map.on('style.load', () => {
+                for (const layerId of layerOrder) {
+                    const layer = layers.get(layerId);
+                    if (layer) { addLayerToMap(layer); updateMapData(layer); }
+                }
+                reorderMapLayers();
+            });
+
+            params.getAll('url').forEach(url => loadFromUrl(url));
+            updateMapInfoDisplay();
+        }
+
+        initializeApp();
+
     </script>
 </body>
 

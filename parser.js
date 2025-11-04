@@ -51,6 +51,7 @@ export async function* processParquetStream(file, limit = Infinity) {
 
         // On the first batch, try to detect the geometry column name
         if (!geometryColumnName && rowArray.length > 0) {
+            // FIX: Call toJSON() on the first row object, not the entire array.
             const firstRow = rowArray[0].toJSON();
             geometryColumnName = findGeometryColumnName(firstRow);
         }
