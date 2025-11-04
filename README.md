@@ -18,7 +18,7 @@ Works for up to 2 million points out of the box with plain maplibre.
 
 One of the most powerful features of the visualizer is its ability to be controlled entirely through URL parameters. This makes it easy to bookmark specific views, pre-load datasets, and share your customized map with others.
 
-Example: https://do-me.github.io/geoparquet-visualizer/?url=https%3A%2F%2Fhuggingface.co%2Fdatasets%2Fdo-me%2FItalian_Parcels%2Fresolve%2Fmain%2FVALLE-AOSTA_communes.geoparquet
+Example for loading a remote geoparquet file from Huggingface, setting the view to it's extent and closing the sidebar: https://do-me.github.io/geoparquet-visualizer/?map=9.77%2F45.73225%2F7.39115%2F0.00%2F0.00&sidebar=0&style=https%3A%2F%2Ftiles.openfreemap.org%2Fstyles%2Fliberty&url=https://huggingface.co/datasets/do-me/Italian_Parcels/resolve/main/VALLE-AOSTA_communes.geoparquet
 
 Here’s how it works:
 
@@ -42,7 +42,7 @@ Sets the exact view of the map. The format is `zoom/latitude/longitude/bearing/p
 
 Changes the underlying basemap. You can use any MapLibre-compatible style JSON URL.
 
-*   **Example**: `https://do-me.github.io/geoparquet-visualizer/?style=https://tiles.openfreemap.org/styles/positron`
+*   **Example**: https://do-me.github.io/geoparquet-visualizer/?style=https://tiles.openfreemap.org/styles/positron
 
 #### `sidebar`
 
@@ -50,22 +50,4 @@ Controls whether the sidebar is open or closed on load. Use `1` for open and `0`
 
 *   **Example**: `?sidebar=0`
 
-### Putting It All Together: Example Scenarios
-
-You can combine these parameters to create powerful, shareable links.
-
-**Scenario 1: Show a specific dataset focused on a region**
-
-Load a GeoParquet file of European cities and zoom directly to Central Europe with the sidebar closed for a clean view.
-
-```
-https://your-visualizer-url/?sidebar=0&map=5/50.11/10.33/0/0&url=https://path/to/european_cities.geoparquet
-```
-
-**Scenario 2: Compare two datasets with a custom dark basemap**
-
-Load two different remote datasets, change the basemap to a dark theme, and tilt the map for a dramatic 3D perspective.
-
-```
-https://your-visualizer-url/?style=https://tiles.openfreemap.org/styles/dark-matter&map=10/34.05/-118.24/0/45&url=https://path/to/dataset_one.parquet&url=https://path/to/dataset_two.parquet
-```
+This way you can embed this map viewer as an iframe on any html page and dynamically load data. Keep in mind that if the datasets become too large, it will take ages too load and break at some point.
