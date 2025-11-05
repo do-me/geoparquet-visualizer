@@ -21,7 +21,11 @@
             }
         }
     </script>
-    <link href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
+    <link href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <!-- Geocoder Plugin -->
+    <script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.2.0/dist/maplibre-gl-geocoder.min.js"></script>
+    <link rel="stylesheet"
+        href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.2.0/dist/maplibre-gl-geocoder.css" type="text/css" />
     <style>
         /* For drag-and-drop layer reordering */
         .dragging {
@@ -76,6 +80,21 @@
             border-radius: 0.375rem;
             border: 1px solid #e5e7eb;
         }
+
+        /* Geocoder styling */
+        #geocoder-container {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 20;
+        }
+
+        .maplibregl-ctrl-geocoder {
+            width: 250px;
+            max-width: none;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
     </style>
 </head>
 
@@ -84,6 +103,9 @@
     <div class="relative h-full w-full">
         <!-- Map Container (Full Screen) -->
         <div id="map" class="absolute inset-0 w-full h-full"></div>
+
+        <!-- Geocoder Container -->
+        <div id="geocoder-container"></div>
 
         <!-- NEW: Pitch/Bearing display -->
         <div
@@ -162,6 +184,15 @@
                                         class="block w-full rounded-lg border-gray-200 px-4 text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary sm:text-sm sm:leading-6 transition-colors duration-200">
                                     <button id="set-style-button"
                                         class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary text-sm font-semibold flex-shrink-0">Set</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="background-color-input" class="block text-sm font-medium text-gray-900">
+                                    Background Color
+                                </label>
+                                <div class="mt-1 flex items-center gap-3">
+                                    <input type="color" id="background-color-input" value="#f8fafc">
+                                    <span id="background-color-hex" class="font-mono text-sm text-gray-600">#f8fafc</span>
                                 </div>
                             </div>
                         </div>
@@ -437,7 +468,7 @@
         </div>
     </template>
 
-    <script src="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
     <script type="module">
         // --- DOM Elements ---
         const dropZone = document.getElementById('drop-zone');
@@ -456,17 +487,24 @@
         const setStyleButton = document.getElementById('set-style-button');
         const mapBearingDisplay = document.getElementById('map-bearing-display');
         const mapPitchDisplay = document.getElementById('map-pitch-display');
+        const backgroundColorInput = document.getElementById('background-color-input');
+        const backgroundColorHex = document.getElementById('background-color-hex');
+        const geocoderContainer = document.getElementById('geocoder-container');
+
 
         const eyeIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`;
         const eyeOffIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>`;
 
         // --- State Management ---
         let map; // Initialized in initializeApp
+        window.map = map;
         let layers = new Map(); // Using a Map to store layer state by ID
         let layerOrder = []; // Array of layer IDs to manage rendering order
         let nextLayerId = 0;
         let isSidebarOpen = true;
         let currentStyleUrl = 'https://tiles.openfreemap.org/styles/liberty';
+        let currentBackgroundColor = '#f8fafc';
+
 
         // --- Helper Function ---
         function hexToRgba(hex, alpha = 1) {
@@ -850,6 +888,9 @@
         }
 
         function updateUrlParams() {
+            // FIX: Ensure map and its projection are initialized before updating URL
+            if (!map || !map.getProjection()) return;
+
             const params = new URLSearchParams();
             const center = map.getCenter();
             const zoom = map.getZoom().toFixed(2);
@@ -858,11 +899,19 @@
             params.set('map', `${zoom}/${center.lat.toFixed(5)}/${center.lng.toFixed(5)}/${bearing}/${pitch}`);
             params.set('sidebar', isSidebarOpen ? '1' : '0');
             params.set('style', currentStyleUrl);
+            params.set('background', currentBackgroundColor);
+
+            const projection = map.getProjection().name;
+            if (projection === 'globe') {
+                params.set('projection', 'globe');
+            }
+
             for (const layer of layers.values()) {
                 if (layer.sourceType === 'url') params.append('url', layer.sourceUrl);
             }
             history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
         }
+
 
         function updateShareButtonVisibility() {
             const hasRemoteLayer = [...layers.values()].some(l => l.sourceType === 'url');
@@ -895,11 +944,17 @@
         // --- Initial App Load ---
         function initializeApp() {
             const params = new URLSearchParams(window.location.search);
+
             const styleParam = params.get('style');
             if (styleParam) {
                 try {
                     new URL(styleParam); currentStyleUrl = styleParam;
                 } catch (e) { console.warn("Invalid style URL param, using default."); }
+            }
+
+            const backgroundParam = params.get('background');
+            if (backgroundParam) {
+                currentBackgroundColor = backgroundParam;
             }
 
             const mapParam = params.get('map');
@@ -908,11 +963,22 @@
                 const [zoom, lat, lng, bearing, pitch] = mapParam.split('/');
                 initialMapView = { center: [parseFloat(lng), parseFloat(lat)], zoom: parseFloat(zoom), bearing: parseFloat(bearing), pitch: parseFloat(pitch) };
             }
+
             if (params.get('sidebar') === '0') isSidebarOpen = false;
+
+            const projectionParam = params.get('projection');
+            if (projectionParam === 'globe') {
+                initialMapView.projection = 'globe';
+            }
+
 
             map = new maplibregl.Map({ container: 'map', style: currentStyleUrl, ...initialMapView });
 
             styleUrlInput.value = currentStyleUrl;
+            backgroundColorInput.value = currentBackgroundColor;
+            backgroundColorHex.textContent = currentBackgroundColor;
+
+
             if (!isSidebarOpen) {
                 sidebarEl.classList.add('-translate-x-full');
                 toggleSidebarOuterBtn.classList.remove('opacity-0', 'pointer-events-none');
@@ -921,6 +987,40 @@
             }
 
             map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+            map.addControl(new maplibregl.GlobeControl(), 'bottom-right');
+
+            // --- Geocoder Initialization ---
+            const geocoderApi = {
+                forwardGeocode: async (config) => {
+                    const features = [];
+                    try {
+                        const q = config.query;
+                        const endpoint = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5`;
+                        const response = await fetch(endpoint);
+                        const data = await response.json();
+                        for (const f of data.features) {
+                            const center = f.geometry.coordinates;
+                            const feature = {
+                                type: 'Feature',
+                                center: center,
+                                geometry: f.geometry,
+                                place_name: f.properties.name,
+                                properties: f.properties,
+                                place_type: ['place'],
+                                text: f.properties.name
+                            };
+                            features.push(feature);
+                        }
+                    } catch (e) {
+                        console.error(`Failed to forwardGeocode with error: ${e}`);
+                    }
+                    return { features };
+                }
+            };
+
+            const geocoder = new MaplibreGeocoder(geocoderApi, { maplibregl: maplibregl });
+            geocoderContainer.appendChild(geocoder.onAdd(map));
+
 
             toggleSidebarOuterBtn.addEventListener('click', () => toggleSidebar());
             toggleSidebarInnerBtn.addEventListener('click', () => toggleSidebar());
@@ -931,6 +1031,12 @@
             });
             loadUrlButton.addEventListener('click', () => { if (urlInput.value) { loadFromUrl(urlInput.value); urlInput.value = ''; } });
             setStyleButton.addEventListener('click', handleSetStyle);
+            backgroundColorInput.addEventListener('input', (e) => {
+                currentBackgroundColor = e.target.value;
+                backgroundColorHex.textContent = currentBackgroundColor;
+                map.getCanvas().style.backgroundColor = currentBackgroundColor;
+                debouncedUpdateUrlForMap();
+            });
             shareMapButton.addEventListener('click', () => {
                 const url = new URL(window.location.href);
                 navigator.clipboard.writeText(url.toString()).then(() => {
@@ -944,7 +1050,10 @@
 
             map.on('moveend', debouncedUpdateUrlForMap);
             map.on('move', updateMapInfoDisplay);
+            map.on('projection.set', debouncedUpdateUrlForMap);
+
             map.on('style.load', () => {
+                map.getCanvas().style.backgroundColor = currentBackgroundColor;
                 for (const layerId of layerOrder) {
                     const layer = layers.get(layerId);
                     if (layer) { addLayerToMap(layer); updateMapData(layer); }
