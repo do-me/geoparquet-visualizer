@@ -18,9 +18,19 @@ const mapPitchDisplay = document.getElementById('map-pitch-display');
 const backgroundColorInput = document.getElementById('background-color-input');
 const backgroundColorHex = document.getElementById('background-color-hex');
 const geocoderContainer = document.getElementById('geocoder-container');
+// Animation controls
+const playPauseButton = document.getElementById('play-pause-button');
+const spinSpeedXInput = document.getElementById('spin-speed-x');
+const spinSpeedYInput = document.getElementById('spin-speed-y');
+const spinSpeedXValue = document.getElementById('spin-speed-x-value');
+const spinSpeedYValue = document.getElementById('spin-speed-y-value');
+
 
 const eyeIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`;
 const eyeOffIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>`;
+const playIcon = `<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M4 2.892a.5.5 0 0 1 .798-.401l11.216 6.284a.5.5 0 0 1 0 .802L4.798 17.51a.5.5 0 0 1-.798-.401V2.892Z"></path></svg>`;
+const pauseIcon = `<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M5.75 3a.75.75 0 0 0-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 0 0 .75-.75V3.75A.75.75 0 0 0 7.25 3h-1.5ZM12.75 3a.75.75 0 0 0-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 0 0 .75-.75V3.75a.75.75 0 0 0-.75-.75h-1.5Z"></path></svg>`;
+
 
 // --- State Management ---
 let map; // Initialized in initializeApp
@@ -32,6 +42,11 @@ let isSidebarOpen = true;
 let currentStyleUrl = 'https://tiles.openfreemap.org/styles/liberty';
 let currentBackgroundColor = '#f8fafc';
 let initialProjection = 'mercator'; // Track initial projection from URL, default to mercator
+// Animation state
+let isSpinning = false;
+let spinSpeedX = 0.1;
+let spinSpeedY = 0.0;
+let animationFrameId = null;
 
 // --- Helper Function ---
 function hexToRgba(hex, alpha = 1) {
@@ -39,6 +54,37 @@ function hexToRgba(hex, alpha = 1) {
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// --- Map Animation ---
+function spinGlobe() {
+    if (!isSpinning) {
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+        return;
+    }
+    const center = map.getCenter();
+    center.lng += spinSpeedX;
+    center.lat += spinSpeedY;
+    // Clamp latitude to avoid pole flipping issues
+    center.lat = Math.max(-85, Math.min(85, center.lat));
+    map.easeTo({ center, duration: 0, easing: t => t });
+    animationFrameId = requestAnimationFrame(spinGlobe);
+}
+
+function toggleSpin(updateUrl = true) {
+    isSpinning = !isSpinning;
+    if (isSpinning) {
+        playPauseButton.innerHTML = pauseIcon;
+        spinGlobe();
+    } else {
+        playPauseButton.innerHTML = playIcon;
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+    }
+    if (updateUrl) updateUrlParams();
 }
 
 // --- Sidebar Toggle ---
@@ -435,6 +481,11 @@ function updateUrlParams() {
     params.set('sidebar', isSidebarOpen ? '1' : '0');
     params.set('style', currentStyleUrl);
     params.set('background', currentBackgroundColor);
+    params.set('spinSpeedX', spinSpeedX.toFixed(2));
+    params.set('spinSpeedY', spinSpeedY.toFixed(2));
+    if (isSpinning) {
+        params.set('play', '1');
+    }
 
     const projection = map.getProjection();
     if (!projection) {
@@ -533,6 +584,17 @@ function initializeApp() {
         toggleSidebarOuterBtn.classList.add('opacity-0', 'pointer-events-none');
     }
 
+    // Animation URL params
+    const spinXParam = params.get('spinSpeedX');
+    if (spinXParam !== null) spinSpeedX = parseFloat(spinXParam);
+    spinSpeedXInput.value = spinSpeedX;
+    spinSpeedXValue.textContent = spinSpeedX.toFixed(2);
+
+    const spinYParam = params.get('spinSpeedY');
+    if (spinYParam !== null) spinSpeedY = parseFloat(spinYParam);
+    spinSpeedYInput.value = spinSpeedY;
+    spinSpeedYValue.textContent = spinSpeedY.toFixed(2);
+
     console.log('[DEBUG] initializeApp: Initializing MapLibre map with view:', initialMapView);
     map = new maplibregl.Map({ container: 'map', style: currentStyleUrl, ...initialMapView });
 
@@ -572,10 +634,10 @@ function initializeApp() {
         currentBackgroundColor = e.target.value;
         backgroundColorHex.textContent = currentBackgroundColor;
         map.getCanvas().style.backgroundColor = currentBackgroundColor;
-        map.on('style.load', () => {
-            debouncedUpdateUrlForMap();
-        });
+        // Debounce update to avoid spamming history
+        debouncedUpdateUrlForMap();
     });
+
     shareMapButton.addEventListener('click', () => {
         navigator.clipboard.writeText(window.location.href).then(() => {
             const span = shareMapButton.querySelector('span');
@@ -586,21 +648,38 @@ function initializeApp() {
         });
     });
 
+    // --- Animation Listeners ---
+    playPauseButton.addEventListener('click', () => toggleSpin());
+    spinSpeedXInput.addEventListener('input', (e) => {
+        spinSpeedX = parseFloat(e.target.value);
+        spinSpeedXValue.textContent = spinSpeedX.toFixed(2);
+        debouncedUpdateUrlForMap();
+    });
+    spinSpeedYInput.addEventListener('input', (e) => {
+        spinSpeedY = parseFloat(e.target.value);
+        spinSpeedYValue.textContent = spinSpeedY.toFixed(2);
+        debouncedUpdateUrlForMap();
+    });
+
     // --- Map Event Listeners ---
     map.on('moveend', () => {
         console.log("[DEBUG] Map event: 'moveend'");
-
-        debouncedUpdateUrlForMap();
-
+        // Only update if not spinning, to avoid overwriting the animation's movement
+        if (!isSpinning) {
+            debouncedUpdateUrlForMap();
+        }
+    });
+    map.on('dragstart', () => {
+        if (isSpinning) toggleSpin(false); // Stop spinning on drag, don't update URL yet
+    });
+    map.on('zoomstart', () => {
+        if (isSpinning) toggleSpin(false); // Stop spinning on zoom
     });
     map.on('move', updateMapInfoDisplay);
 
     map.on('projectiontransition', () => {
-
         console.log("[DEBUG] Map event: projectiontransition");
-
         debouncedUpdateUrlForMap();
-
     });
 
     // This is the primary listener for style changes. It re-adds layers and applies the projection.
@@ -618,7 +697,6 @@ function initializeApp() {
         reorderMapLayers();
 
         // Apply the desired projection AFTER the style has loaded.
-
         console.log(`[DEBUG] 'style.load': initial target is '${initialProjection}'`);
         if (initialProjection === 'globe') {
             console.log("[DEBUG] 'style.load': Applying 'globe' projection now.");
@@ -632,10 +710,7 @@ function initializeApp() {
         if (e.dataType === 'source' && e.sourceDataType === 'metadata') {
             // This event often fires after a projection change is complete.
             console.log("[DEBUG] Map event: 'data' (metadata). Debouncing URL update.");
-            map.on('style.load', () => {
-                debouncedUpdateUrlForMap();
-            });
-
+            debouncedUpdateUrlForMap();
         }
     });
 
@@ -649,11 +724,17 @@ function initializeApp() {
             loadFromUrl(url);
         });
         updateMapInfoDisplay();
+        
+        // Auto-play if specified in URL
+        if (params.get('play') === '1') {
+            toggleSpin(false); // Start spinning but don't re-update the URL
+        } else {
+            playPauseButton.innerHTML = playIcon;
+        }
+
         // A final update to ensure the initial state is captured correctly.
         console.log("[DEBUG] 'load': Calling updateUrlParams()");
-
         updateUrlParams();
-
     });
 }
 

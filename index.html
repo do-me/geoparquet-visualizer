@@ -106,7 +106,7 @@
                                     d="M19 9l-7 7-7-7"></path>
                             </svg>
                         </summary>
-                        <div class="mt-6 space-y-4">
+                        <div class="mt-6 space-y-6">
                             <div>
                                 <label for="style-url-input" class="block text-sm font-medium text-gray-900">
                                     Basemap Style URL
@@ -126,6 +126,38 @@
                                     <input type="color" id="background-color-input" value="#f8fafc">
                                     <span id="background-color-hex"
                                         class="font-mono text-sm text-gray-600">#f8fafc</span>
+                                </div>
+                            </div>
+                            <!-- Auto-spin controls -->
+                            <div class="pt-2 border-t border-gray-200">
+                                <label class="block text-sm font-medium text-gray-900">
+                                    Map Animation
+                                </label>
+                                <div class="mt-3 flex items-center gap-4">
+                                    <button id="play-pause-button"
+                                        class="p-2 bg-white rounded-lg shadow hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+                                        <!-- SVG icon will be inserted here by JS -->
+                                    </button>
+                                    <div class="w-full space-y-3">
+                                        <div>
+                                            <label for="spin-speed-x"
+                                                class="flex justify-between text-xs font-medium text-gray-700">
+                                                <span>Pan Speed (X)</span>
+                                                <span id="spin-speed-x-value">0.1</span>
+                                            </label>
+                                            <input type="range" id="spin-speed-x" min="-1" max="1" step="0.05" value="0.1"
+                                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                        </div>
+                                        <div>
+                                            <label for="spin-speed-y"
+                                                class="flex justify-between text-xs font-medium text-gray-700">
+                                                <span>Pan Speed (Y)</span>
+                                                <span id="spin-speed-y-value">0.0</span>
+                                            </label>
+                                            <input type="range" id="spin-speed-y" min="-1" max="1" step="0.05" value="0"
+                                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
