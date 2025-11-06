@@ -1,0 +1,68 @@
+ /* For drag-and-drop layer reordering */
+        .dragging {
+            opacity: 0.5;
+            background: #eef2ff;
+        }
+
+        .drag-over {
+            border-top: 2px solid #4F46E5;
+        }
+
+        /* Allow pointer events on summary icon for better UX */
+        details>summary {
+            list-style: none;
+        }
+
+        details>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details>summary>svg {
+            pointer-events: none;
+        }
+
+        details[open]>summary>svg.collapsible-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Style for color picker inputs */
+        input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
+        }
+
+        input[type="color"]::-moz-color-swatch {
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
+        }
+
+        /* Geocoder styling */
+        #geocoder-container {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 20;
+        }
+
+        .maplibregl-ctrl-geocoder {
+            width: 250px;
+            max-width: none;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
