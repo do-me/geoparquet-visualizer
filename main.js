@@ -19,10 +19,10 @@ const backgroundColorHex = document.getElementById('background-color-hex');
 const geocoderContainer = document.getElementById('geocoder-container');
 // Animation controls
 const playPauseButton = document.getElementById('play-pause-button');
-const spinSpeedXInput = document.getElementById('spin-speed-x');
-const spinSpeedYInput = document.getElementById('spin-speed-y');
-const spinSpeedXValue = document.getElementById('spin-speed-x-value');
-const spinSpeedYValue = document.getElementById('spin-speed-y-value');
+const spinSpeedXSlider = document.getElementById('spin-speed-x-slider');
+const spinSpeedYSlider = document.getElementById('spin-speed-y-slider');
+const spinSpeedXNumber = document.getElementById('spin-speed-x-number');
+const spinSpeedYNumber = document.getElementById('spin-speed-y-number');
 
 
 const eyeIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`;
@@ -480,8 +480,8 @@ function updateUrlParams() {
     params.set('sidebar', isSidebarOpen ? '1' : '0');
     params.set('style', currentStyleUrl);
     params.set('background', currentBackgroundColor);
-    params.set('spinSpeedX', spinSpeedX.toFixed(2));
-    params.set('spinSpeedY', spinSpeedY.toFixed(2));
+    params.set('spinSpeedX', spinSpeedX.toString());
+    params.set('spinSpeedY', spinSpeedY.toString());
     if (isSpinning) {
         params.set('play', '1');
     }
@@ -579,13 +579,13 @@ function initializeApp() {
     // Animation URL params
     const spinXParam = params.get('spinSpeedX');
     if (spinXParam !== null) spinSpeedX = parseFloat(spinXParam);
-    spinSpeedXInput.value = spinSpeedX;
-    spinSpeedXValue.textContent = spinSpeedX.toFixed(2);
+    spinSpeedXSlider.value = spinSpeedX;
+    spinSpeedXNumber.value = spinSpeedX;
 
     const spinYParam = params.get('spinSpeedY');
     if (spinYParam !== null) spinSpeedY = parseFloat(spinYParam);
-    spinSpeedYInput.value = spinSpeedY;
-    spinSpeedYValue.textContent = spinSpeedY.toFixed(2);
+    spinSpeedYSlider.value = spinSpeedY;
+    spinSpeedYNumber.value = spinSpeedY;
 
     console.log('[DEBUG] initializeApp: Initializing MapLibre map with view:', initialMapView);
     map = new maplibregl.Map({ container: 'map', style: currentStyleUrl, ...initialMapView });
@@ -632,16 +632,35 @@ function initializeApp() {
 
     // --- Animation Listeners ---
     playPauseButton.addEventListener('click', () => toggleSpin());
-    spinSpeedXInput.addEventListener('input', (e) => {
-        spinSpeedX = parseFloat(e.target.value);
-        spinSpeedXValue.textContent = spinSpeedX.toFixed(2);
+
+    spinSpeedXSlider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        spinSpeedX = val;
+        spinSpeedXNumber.value = val;
         debouncedUpdateUrlForMap();
     });
-    spinSpeedYInput.addEventListener('input', (e) => {
-        spinSpeedY = parseFloat(e.target.value);
-        spinSpeedYValue.textContent = spinSpeedY.toFixed(2);
+    spinSpeedXNumber.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (isNaN(val)) return;
+        spinSpeedX = val;
+        spinSpeedXSlider.value = val;
         debouncedUpdateUrlForMap();
     });
+
+    spinSpeedYSlider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        spinSpeedY = val;
+        spinSpeedYNumber.value = val;
+        debouncedUpdateUrlForMap();
+    });
+    spinSpeedYNumber.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (isNaN(val)) return;
+        spinSpeedY = val;
+        spinSpeedYSlider.value = val;
+        debouncedUpdateUrlForMap();
+    });
+
 
     // --- Map Event Listeners ---
     map.on('moveend', () => {
