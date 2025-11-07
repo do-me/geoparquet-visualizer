@@ -10,7 +10,6 @@ const toggleSidebarInnerBtn = document.getElementById('toggle-sidebar-inner');
 const layerListContainer = document.getElementById('layer-list-container');
 const layerCardTemplate = document.getElementById('layer-card-template');
 const initialMessage = document.getElementById('initial-message');
-const shareMapButton = document.getElementById('share-map-button');
 const styleUrlInput = document.getElementById('style-url-input');
 const setStyleButton = document.getElementById('set-style-button');
 const mapBearingDisplay = document.getElementById('map-bearing-display');
@@ -511,13 +510,6 @@ function updateUrlParams() {
     history.replaceState({}, '', newUrl);
 }
 
-
-function updateShareButtonVisibility() {
-    const hasRemoteLayer = [...layers.values()].some(l => l.sourceType === 'url');
-    shareMapButton.classList.toggle('hidden', !hasRemoteLayer);
-    shareMapButton.classList.toggle('inline-flex', hasRemoteLayer);
-}
-
 function updateMapInfoDisplay() {
     requestAnimationFrame(() => {
         mapBearingDisplay.textContent = `Bearing: ${map.getBearing().toFixed(1)}°`;
@@ -638,16 +630,6 @@ function initializeApp() {
         debouncedUpdateUrlForMap();
     });
 
-    shareMapButton.addEventListener('click', () => {
-        navigator.clipboard.writeText(window.location.href).then(() => {
-            const span = shareMapButton.querySelector('span');
-            const originalText = span.textContent;
-            span.textContent = 'Copied!';
-            shareMapButton.classList.add('bg-green-600');
-            setTimeout(() => { span.textContent = originalText; shareMapButton.classList.remove('bg-green-600'); }, 2000);
-        });
-    });
-
     // --- Animation Listeners ---
     playPauseButton.addEventListener('click', () => toggleSpin());
     spinSpeedXInput.addEventListener('input', (e) => {
@@ -724,7 +706,7 @@ function initializeApp() {
             loadFromUrl(url);
         });
         updateMapInfoDisplay();
-        
+
         // Auto-play if specified in URL
         if (params.get('play') === '1') {
             toggleSpin(false); // Start spinning but don't re-update the URL
@@ -739,3 +721,54 @@ function initializeApp() {
 }
 
 initializeApp();
+
+// Unique namespace variables
+const shrUrl = encodeURIComponent(window.location.href);
+const shrTitle = encodeURIComponent(document.title);
+
+// Assign share links
+const shrLinks = {
+    "shr-whatsapp": `https://wa.me/?text=${shrTitle}%20${shrUrl}`,
+    "shr-telegram": `https://t.me/share/url?url=${shrUrl}&text=${shrTitle}`,
+    "shr-twitter": `https://twitter.com/intent/tweet?url=${shrUrl}&text=${shrTitle}`,
+    "shr-facebook": `https://www.facebook.com/sharer/sharer.php?u=${shrUrl}`,
+    "shr-linkedin": `https://www.linkedin.com/shareArticle?mini=true&url=${shrUrl}&title=${shrTitle}`,
+    "shr-reddit": `https://www.reddit.com/submit?url=${shrUrl}&title=${shrTitle}`,
+    "shr-pinterest": `https://pinterest.com/pin/create/button/?url=${shrUrl}&description=${shrTitle}`,
+    "shr-email": `mailto:?subject=${shrTitle}&body=${shrUrl}`
+};
+
+for (const id in shrLinks) {
+    document.getElementById(id).href = shrLinks[id];
+}
+
+// Native share
+document.getElementById("shr-native").addEventListener("click", async () => {
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: document.title,
+                text: "Check this out!",
+                url: window.location.href
+            });
+        } catch (err) {
+            console.error("Share failed:", err);
+        }
+    } else {
+        alert("Web Share API not supported in this browser.");
+    }
+});
+
+// Copy URL with feedback
+const shrCopyBtn = document.getElementById("shr-copy");
+shrCopyBtn.addEventListener("click", async () => {
+    try {
+        await navigator.clipboard.writeText(window.location.href);
+        shrCopyBtn.innerHTML = '<i class="fa-solid fa-check text-[13px]"></i>';
+        setTimeout(() => {
+            shrCopyBtn.innerHTML = '<i class="fa-solid fa-link text-[13px]"></i>';
+        }, 1500);
+    } catch (err) {
+        console.error("Copy failed:", err);
+    }
+});

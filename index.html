@@ -26,6 +26,8 @@
     <script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.2.0/dist/maplibre-gl-geocoder.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.2.0/dist/maplibre-gl-geocoder.css"
         type="text/css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="style.css" type="text/css" />
 
 </head>
@@ -55,7 +57,8 @@
 
         <!-- Sidebar -->
         <div id="sidebar"
-            class="fixed top-0 left-0 z-10 w-full md:w-[420px] lg:w-[480px] h-full transform transition-transform duration-300">
+            class="fixed top-0 left-0 z-10 w-full md:w-[420px] lg:w-[480px] h-full transform transition-transform duration-300"
+            style="z-index: 10000;">
             <!-- Sidebar Content -->
             <div class="h-full bg-white/95 backdrop-blur shadow-xl overflow-y-auto flex flex-col">
                 <!-- Header -->
@@ -63,15 +66,6 @@
                     <div class="flex items-center justify-between">
                         <h1 class="text-2xl font-bold text-gray-900">GeoParquet Visualizer</h1>
                         <div class="flex items-center gap-2 -mr-2">
-                            <button id="share-map-button"
-                                class="hidden px-3 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary text-sm font-semibold flex-shrink-0 items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                                    stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.368a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                                </svg>
-                                <span>Share</span>
-                            </button>
                             <button id="toggle-sidebar-inner"
                                 class="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -81,8 +75,65 @@
                             </button>
                         </div>
                     </div>
-                    <p class="text-sm text-gray-600 mt-1">Visualize Parquet & GeoParquet files from local or remote
-                        URLs.</p>
+                    <p class="text-sm text-gray-600 mt-1">
+                        Visualize local or remote <strong>Parquet</strong> and <strong>GeoParquet</strong> files easily
+                        in your browser without any setup. Tweak the map settings and share the URL with your friends!
+                        Free and open source software by
+                        <a href="https://www.linkedin.com/in/dominik-weckm%C3%BCller/" target="_blank"
+                            rel="noopener noreferrer" class="text-blue-600 hover:underline">
+                            Dominik Weckmüller</a>. <a href="https://github.com/do-me/geoparquet-visualizer" target="_blank" class="text-blue-600 hover:underline">GitHub</a><br><br>
+                    </p>
+
+                    <div class="pt-2 border-t border-gray-200">
+                        <div id="shr-container" class="flex flex-wrap justify-center items-center gap-1.5 relative">
+
+                            <!-- Native Share -->
+                            <button id="shr-native" title="Share"
+                                class="shr-btn bg-gray-700 hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-solid fa-share-nodes text-[13px]"></i>
+                            </button>
+
+                            <!-- Platforms -->
+                            <a id="shr-whatsapp" title="WhatsApp" target="_blank"
+                                class="shr-btn bg-[#25D366] hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-brands fa-whatsapp text-[14px]"></i>
+                            </a>
+                            <a id="shr-telegram" title="Telegram" target="_blank"
+                                class="shr-btn bg-[#0088cc] hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-brands fa-telegram text-[14px]"></i>
+                            </a>
+                            <a id="shr-twitter" title="Twitter" target="_blank"
+                                class="shr-btn bg-[#1DA1F2] hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-brands fa-x-twitter text-[14px]"></i>
+                            </a>
+                            <a id="shr-facebook" title="Facebook" target="_blank"
+                                class="shr-btn bg-[#1877F2] hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-brands fa-facebook-f text-[14px]"></i>
+                            </a>
+                            <a id="shr-linkedin" title="LinkedIn" target="_blank"
+                                class="shr-btn bg-[#0077b5] hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-brands fa-linkedin-in text-[14px]"></i>
+                            </a>
+                            <a id="shr-reddit" title="Reddit" target="_blank"
+                                class="shr-btn bg-[#ff4500] hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-brands fa-reddit-alien text-[14px]"></i>
+                            </a>
+                            <a id="shr-pinterest" title="Pinterest" target="_blank"
+                                class="shr-btn bg-[#E60023] hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-brands fa-pinterest-p text-[14px]"></i>
+                            </a>
+                            <a id="shr-email" title="Email"
+                                class="shr-btn bg-gray-500 hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-solid fa-envelope text-[13px]"></i>
+                            </a>
+
+                            <!-- Copy Link -->
+                            <button id="shr-copy" title="Copy Link"
+                                class="shr-btn bg-green-600 hover:scale-110 transition-transform rounded-full text-white w-8 h-8 flex items-center justify-center">
+                                <i class="fa-solid fa-link text-[13px]"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- NEW: Map Settings -->
@@ -145,7 +196,8 @@
                                                 <span>Pan Speed (X)</span>
                                                 <span id="spin-speed-x-value">0.1</span>
                                             </label>
-                                            <input type="range" id="spin-speed-x" min="-1" max="1" step="0.05" value="0.1"
+                                            <input type="range" id="spin-speed-x" min="-1" max="1" step="0.05"
+                                                value="0.1"
                                                 class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                                         </div>
                                         <div>
