@@ -8,7 +8,7 @@ let wasmInitialized = false;
 // Find the geometry column name dynamically.
 // Looks for "geometry" first, then common alternatives like "geom" or "wkb".
 function findGeometryColumnName(row) {
-    const commonNames = ['geometry', 'geom', 'wkb_geometry', 'shape', 'wkb'];
+    const commonNames = ['geometry', 'geom', 'wkb_geometry', 'shape', 'wkb', 'geo_shape'];
     for (const name of commonNames) {
         if (row[name] instanceof Uint8Array) {
             return name;
