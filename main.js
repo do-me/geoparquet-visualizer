@@ -17,6 +17,7 @@ const mapPitchDisplay = document.getElementById('map-pitch-display');
 const backgroundColorInput = document.getElementById('background-color-input');
 const backgroundColorHex = document.getElementById('background-color-hex');
 const geocoderContainer = document.getElementById('geocoder-container');
+const printMapButton = document.getElementById('print-map-button');
 // Animation controls
 const playPauseButton = document.getElementById('play-pause-button');
 const spinSpeedXSlider = document.getElementById('spin-speed-x-slider');
@@ -520,18 +521,87 @@ function updateMapInfoDisplay() {
 function handleSetStyle() {
     const newStyleUrl = styleUrlInput.value.trim();
     if (!newStyleUrl) return;
-    try {
-        new URL(newStyleUrl);
-        currentStyleUrl = newStyleUrl;
-        console.log(`[DEBUG] Setting new map style: ${newStyleUrl}`);
-        map.setStyle(newStyleUrl);
-        updateUrlParams();
-    } catch (e) {
-        alert("Invalid Basemap Style URL. Please enter a valid URL.");
-    }
+
+    currentStyleUrl = newStyleUrl;
+    console.log(`[DEBUG] Setting new map style: ${newStyleUrl}`);
+
+    const styleToSet = getStyleObject(newStyleUrl);
+    map.setStyle(styleToSet);
+    updateUrlParams();
 }
 
 const debouncedUpdateUrlForMap = debounce(updateUrlParams, 50);
+
+function getStyleObject(styleUrl) {
+    if (styleUrl.toLowerCase() === 'none') {
+        // Return a minimal, blank style object
+        return {
+            version: 8,
+            name: "Blank",
+            sources: {},
+            layers: []
+        };
+    }
+    // For any other value, assume it's a URL
+    return styleUrl;
+}
+
+// --- Map Printing ---
+function captureMapImage(mapInstance, targetWidth, targetHeight) {
+    return new Promise((resolve, reject) => {
+        // Temporarily disable the preserveDrawingBuffer for the main map instance
+        // to avoid potential performance hits during normal use.
+        mapInstance.preserveDrawingBuffer = true;
+
+        const container = mapInstance.getContainer();
+        const originalStyle = {
+            width: container.style.width,
+            height: container.style.height,
+            position: container.style.position,
+            top: container.style.top,
+            left: container.style.left,
+            zIndex: container.style.zIndex
+        };
+        const targetAspectRatio = targetHeight / targetWidth;
+        const printWidth = 1920; // Use a fixed higher resolution for printing
+        const printHeight = printWidth * targetAspectRatio;
+
+        Object.assign(container.style, {
+            position: 'absolute',
+            top: '-9999px', // Move off-screen
+            left: '-9999px',
+            width: `${printWidth}px`,
+            height: `${printHeight}px`
+        });
+
+        try {
+            mapInstance.resize();
+            mapInstance.once('idle', () => {
+                try {
+                    // Get the canvas data URL
+                    const dataUrl = mapInstance.getCanvas().toDataURL('image/jpeg', 0.9);
+                    resolve(dataUrl);
+                } catch (e) {
+                    reject(e);
+                }
+                finally {
+                    // Restore original styles and resize back
+                    Object.assign(container.style, originalStyle);
+                    mapInstance.resize();
+                    // Disable again after capture is complete
+                    mapInstance.preserveDrawingBuffer = false;
+                }
+            });
+        } catch (err) {
+            // Ensure cleanup even if an error occurs during setup
+            Object.assign(container.style, originalStyle);
+            mapInstance.resize();
+            mapInstance.preserveDrawingBuffer = false;
+            reject(err);
+        }
+    });
+}
+
 
 // --- Initial App Load ---
 function initializeApp() {
@@ -548,9 +618,7 @@ function initializeApp() {
 
     const styleParam = params.get('style');
     if (styleParam) {
-        try {
-            new URL(styleParam); currentStyleUrl = styleParam;
-        } catch (e) { console.warn("Invalid style URL param, using default."); }
+        currentStyleUrl = styleParam;
     }
     styleUrlInput.value = currentStyleUrl;
 
@@ -588,7 +656,14 @@ function initializeApp() {
     spinSpeedYNumber.value = spinSpeedY;
 
     console.log('[DEBUG] initializeApp: Initializing MapLibre map with view:', initialMapView);
-    map = new maplibregl.Map({ container: 'map', style: currentStyleUrl, ...initialMapView });
+
+    const initialStyle = getStyleObject(currentStyleUrl);
+    map = new maplibregl.Map({
+        container: 'map',
+        style: initialStyle,
+        ...initialMapView,
+        preserveDrawingBuffer: false // Important: default to false for performance
+    });
 
     map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
     map.addControl(new maplibregl.GlobeControl(), 'bottom-right');
@@ -628,6 +703,32 @@ function initializeApp() {
         map.getCanvas().style.backgroundColor = currentBackgroundColor;
         // Debounce update to avoid spamming history
         debouncedUpdateUrlForMap();
+    });
+
+    printMapButton.addEventListener('click', async () => {
+        const originalText = printMapButton.innerHTML;
+        printMapButton.innerHTML = `<span>Printing...</span>`;
+        printMapButton.disabled = true;
+
+        try {
+            const { width, height } = map.getCanvas();
+            const dataUrl = await captureMapImage(map, width, height);
+
+            // Create a link to download the image
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `map-export-${Date.now()}.jpeg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+        } catch (error) {
+            console.error('Failed to capture map image:', error);
+            alert('Could not capture map image. Please check the console for errors.');
+        } finally {
+            printMapButton.innerHTML = originalText;
+            printMapButton.disabled = false;
+        }
     });
 
     // --- Animation Listeners ---
