@@ -66,21 +66,17 @@ export async function* processParquetStream(file, limit = Infinity) {
             // First convert to a plain object using toJSON
             const jsonData = rowObject.toJSON();
             const row = {};
-            
-            // Handle each field, paying special attention to binary/geometry data
+
+            // Handle each field, paying special attention to binary/geometry data.
+            // Arrow's toJSON() on the root row leaves nested struct fields as
+            // StructRow Proxies, which cannot be sent across postMessage (it
+            // uses structuredClone and throws "Proxy Object could not be cloned").
+            // We recursively convert anything object-like to plain JS.
             for (const [key, value] of Object.entries(jsonData)) {
-                // Skip null values
-                if (value === null) {
-                    row[key] = null;
-                    continue;
-                }
-                
-                // Handle binary/geometry data
                 if (value instanceof Uint8Array) {
                     row[key] = new Uint8Array(value);
                 } else {
-                    // For all other types, use the value as is
-                    row[key] = value;
+                    row[key] = toPlainValue(value);
                 }
             }
             let geometry = null;
@@ -138,6 +134,22 @@ export async function* processParquetStream(file, limit = Infinity) {
 
 function isValidCoordinate(value) {
     return value !== undefined && value !== null && typeof value === 'number' && !isNaN(value);
+}
+
+// Recursively convert Arrow Row/StructRow Proxies to plain JS values.
+// Uint8Array is passed through (structured clone handles it and we need the
+// raw bytes for WKB parsing). Plain primitives pass through unchanged.
+function toPlainValue(value) {
+    if (value === null || value === undefined) return value;
+    if (typeof value !== 'object') return value;
+    if (value instanceof Uint8Array) return value;
+    if (Array.isArray(value)) return value.map(toPlainValue);
+    // Arrow StructRow exposes toJSON(); calling it returns a plain object
+    // whose nested struct fields are themselves Proxies, so we recurse.
+    const source = typeof value.toJSON === 'function' ? value.toJSON() : value;
+    const out = {};
+    for (const k of Object.keys(source)) out[k] = toPlainValue(source[k]);
+    return out;
 }
 
 // Function to parse Well-Known Binary (WKB) geometry
